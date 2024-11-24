@@ -1,0 +1,29 @@
+[package]
+name = "revm-trace"
+version = "0.1.0"
+edition = "2021"
+authors = ["Rollp0x <zkrollp@gmail.com>"]
+description = "A Rust library for tracing EVM transactions, including call traces, asset transfers, and error analysis using REVM"
+repository = "https://github.com/Rollp0x/revm-trace"
+documentation = "https://docs.rs/revm-trace"
+readme = "README.md"
+keywords = ["ethereum", "evm", "simulation", "defi", "blockchain"]
+categories = ["cryptography::cryptocurrencies", "development-tools", "simulation"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+anyhow = "1.0.86"
+tokio = { version = "1.38.0", features = ["sync", "rt-multi-thread"] }
+revm = { version = "18.0.0", features = ["serde-json", "alloydb", "dev"] }
+alloy = { version = "0.5.2", features = [
+    "full",
+    "provider-debug-api",
+    "provider-trace-api"
+] }
+once_cell = "1.19"
+colored = "2.0"
+prettytable-rs = "0.10"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
