@@ -21,9 +21,13 @@ alloy = { version = "0.5.2", features = [
     "provider-trace-api"
 ] }
 once_cell = "1.19"
-colored = "2.0"
-prettytable-rs = "0.10"
 
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[dev-dependencies]
+criterion = "0.5"
+pretty_assertions = "1.0"
+colored = "2.0"
+prettytable-rs = "0.10"
