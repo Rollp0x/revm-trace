@@ -5,7 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2024-01-24
+
+## [0.1.1] - 2024-11-25
+
+### Fixed
+- Fixed a bug where transaction validation errors were not properly reported in the `TraceResult`
+- Improved error handling to properly capture and display pre-execution validation failures
+
+
+## [0.1.0] - 2024-11-24
 
 ### Added
 - Initial implementation of EVM transaction simulation
@@ -34,3 +42,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Basic usage examples
 - API documentation
 - Integration test cases
+

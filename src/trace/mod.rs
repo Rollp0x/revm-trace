@@ -14,13 +14,11 @@ use crate::utils::erc20_utils::{get_token_decimals, get_token_symbol};
 use alloy::{network::Network, primitives::Address, providers::Provider, transports::Transport};
 use inspector::TransactionTracer;
 use revm::{
-    db::{AlloyDB, WrapDatabaseRef},
-    primitives::{TxKind, U256},
-    Evm, Inspector,
+    db::{AlloyDB, WrapDatabaseRef}, primitives::{TxKind, U256}, Evm, Inspector
 };
 use std::any::Any;
 use std::collections::HashMap;
-use types::{TokenInfo, TraceResult, TransferRecord};
+use types::{ExecutionError, TokenInfo, TraceResult, TransferRecord};
 
 /// Simulates transaction execution and tracks all asset transfers and call traces
 ///
@@ -122,13 +120,17 @@ where
     tx.value = value;
     tx.data = data.into();
 
-    // Execute transaction without returning error
-    let _ = evm.transact();
+    // Execute transaction and return error of pre-execution
+    let execution_result = evm.transact();
+    if let Err(evm_error) = execution_result {
+        let mut result = TraceResult::new(vec![], HashMap::new(), vec![], native_token_symbol);
+        result.error = Some(ExecutionError::Custom(format!("Pre-execution error: {}", evm_error)));
+        return result;
+    }
 
     // Get transfers from inspector if available
     if let Some(inspector) = (&evm.context.external as &dyn Any).downcast_ref::<TransactionTracer>()
     {
-        println!("Using custom inspector (e.g., TransactionTracer)");
         transfers = inspector.transfers.clone();
     } else {
         // For other inspectors, only record top-level native token transfer
@@ -157,6 +159,5 @@ where
         Vec::new()
     };
 
-    // Create TraceResult, including execution result (whether successful or failed)
     TraceResult::new(transfers, token_info, traces, native_token_symbol)
 }

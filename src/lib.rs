@@ -11,6 +11,7 @@
 //!   - Support for multiple EVM-compatible chains
 //!   - Historical block state access
 //!   - Custom inspector integration
+//!   - Gas-free simulation (ignores gas limits and fees)
 //!
 //! - **Asset Tracking**
 //!   - Native token transfers (ETH/BNB/MATIC)
@@ -23,6 +24,16 @@
 //!   - Implementation address resolution
 //!   - Call trace recording
 //!   - Error tracking and analysis
+//!
+//! ## Important Notes
+//!
+//! This simulator focuses on transaction effects and asset transfers while ignoring:
+//! - Gas limits and gas prices
+//! - Transaction fees
+//! - Nonce requirements
+//! 
+//! This makes it ideal for analyzing potential transaction outcomes without worrying about
+//! gas-related constraints.
 //!
 //! ## Quick Start
 //!
