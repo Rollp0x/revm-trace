@@ -5,13 +5,18 @@
 //! - Call trace recording
 //! - Error handling and reporting
 //! - Result formatting and analysis
+//!
+//! All types in this module implement `Serialize` and `Deserialize` traits from serde,
+//! making them suitable for JSON serialization and external API usage.
 
 use alloy::primitives::{address, hex, Address, Bytes, U256};
 use revm::interpreter::{CallScheme, Gas, InstructionResult};
 use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 
 /// Represents an error that occurred during transaction execution
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ExecutionError {
     /// EVM-level errors (e.g., out of gas, stack overflow, invalid opcode)
     Evm(InstructionResult),
@@ -20,7 +25,7 @@ pub enum ExecutionError {
 }
 
 /// Represents a single asset transfer event
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TransferRecord {
     /// Token contract address (NATIVE_TOKEN_ADDRESS for native token transfers)
     pub token: Address,
@@ -60,7 +65,7 @@ impl TransferRecord {
 }
 
 /// Token native_token_symbol information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
     /// Token symbol (e.g., "USDT", "DAI", "ETH)
     pub symbol: String,
@@ -72,7 +77,7 @@ pub struct TokenInfo {
 pub const NATIVE_TOKEN_ADDRESS: Address = address!("0000000000000000000000000000000000000000");
 
 /// Comprehensive result of transaction trace analysis
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TraceResult {
     /// Chronologically ordered list of all asset transfers
     pub asset_transfers: Vec<TransferRecord>,
@@ -210,7 +215,7 @@ impl TraceResult {
 }
 
 /// Represents a single call in the transaction execution
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CallTrace {
     /// Address that initiated the call
     pub from: Address,
