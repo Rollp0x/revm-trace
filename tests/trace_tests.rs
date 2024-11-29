@@ -26,8 +26,7 @@
 //! ```
 
 use revm_trace::{
-    create_evm_instance_with_tracer, evm::EvmDb, BlockEnvConfig,
-    trace_tx_assets, Reset, TransactionTracer
+    create_evm_instance, create_evm_instance_with_tracer, trace_tx_assets, BlockEnvConfig,
 };
 
 use alloy::{
@@ -35,8 +34,6 @@ use alloy::{
     providers::{Provider, ProviderBuilder},
     sol,
     sol_types::SolCall,
-};
-use revm::{ inspectors::NoOpInspector, GetInspector, Inspector
 };
 
 sol! {
@@ -65,52 +62,25 @@ enum BlockMode {
     OutOfRange,
 }
 
-/// Helper function to test asset tracing with different configurations
-///
-/// Tests transaction simulation and asset tracing under various conditions:
-/// - Different block heights
-/// - Different caller types (EOA vs Contract)
-/// - Different inspector types
-///
-/// # Arguments
-/// * `caller` - Address initiating the transaction
-/// * `description` - Test case description for logging
-/// * `inspector` - Transaction inspector implementation
-/// * `block_mode` - Block selection mode for historical state access
-///
-/// # Note
-/// Historical state access capabilities depend on the node type and configuration:
-/// - Regular nodes typically limit state access to recent blocks
-/// - Archive nodes can access any historical state
-/// - The actual accessible range varies by provider
-async fn test_uniswap_swap_trace<I>(
+
+
+async fn test_uniswap_swap_trace(
     caller: Address,
     description: &str,
-    inspector: I,
+    with_trace:bool,
     block_mode: BlockMode,
-) where
-    I: Inspector<EvmDb> 
-        + GetInspector<EvmDb>
-        + Reset 
-        + Default 
-        + 'static,
+) 
 {
-    let has_inspector = std::any::TypeId::of::<I>() != std::any::TypeId::of::<NoOpInspector>();
 
     // Create provider and get current block
     let provider = ProviderBuilder::new()
         .on_http("https://rpc.ankr.com/eth".parse().unwrap());
     let latest_block = provider.get_block_number().await.unwrap();
     println!("Current block number: {}", latest_block);
-
-    let mut evm = create_evm_instance_with_tracer(
-        "https://rpc.ankr.com/eth",
-        None
-    ).unwrap();
-    match block_mode {
-        BlockMode::Latest => {},
-        BlockMode::WithinRange => { let _ = evm.set_block_number(latest_block - 120); },
-        BlockMode::OutOfRange => { let _ = evm.set_block_number(latest_block - 10000); },
+    let block_number = match block_mode {
+        BlockMode::Latest => latest_block,
+        BlockMode::WithinRange => latest_block - 120,
+        BlockMode::OutOfRange => latest_block - 10000,
     };
 
     let router = address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"); // Uniswap V2 Router
@@ -128,19 +98,40 @@ async fn test_uniswap_swap_trace<I>(
     }
     .abi_encode();
 
-    // Swap 0.1 ETH for USDC
-    let result = trace_tx_assets(
-        &mut evm,
-        caller,
-        router,
-        U256::from(100000000000000000u128), // 0.1 ETH
-        data.into(),
-        "ETH",
-    )
-    .await;
-
+    let result =if with_trace {
+        let mut evm = create_evm_instance_with_tracer(
+        "https://rpc.ankr.com/eth",
+        Some(1)
+        ).unwrap();
+        evm.set_block_number(block_number);
+        trace_tx_assets(
+            &mut evm,
+            caller,
+            router,
+            U256::from(100000000000000000u128), // 0.1 ETH
+            data.into(),
+            "ETH",
+        )
+        .await
+    } else {
+        let mut evm = create_evm_instance(
+            "https://rpc.ankr.com/eth",
+            Some(1)
+        ).unwrap();
+        evm.set_block_number(block_number);
+        trace_tx_assets(
+            &mut evm,
+            caller,
+            router,
+            U256::from(100000000000000000u128), // 0.1 ETH
+            data.into(),
+            "ETH",
+        )
+        .await
+    };
+    
     // Adjust validation logic based on inspector type
-    if !has_inspector {
+    if !with_trace {
         assert!(
             !result.asset_transfers().is_empty(),
             "No native token transfers found for {}",
@@ -177,7 +168,7 @@ async fn test_uniswap_swap_trace<I>(
 #[tokio::test(flavor = "multi_thread")]
 async fn test_trace_tx_assets_complex_with_eoa() {
     let from = address!("57757E3D981446D585Af0D9Ae4d7DF6D64647806");
-    test_uniswap_swap_trace(from, "EOA", TransactionTracer::default(), BlockMode::Latest).await;
+    test_uniswap_swap_trace(from, "EOA", true, BlockMode::Latest).await;
 }
 
 /// Test asset tracing with EOA caller using a recent historical block
@@ -188,7 +179,7 @@ async fn test_trace_tx_assets_complex_with_eoa_within_range() {
     test_uniswap_swap_trace(
         from,
         "EOA",
-        TransactionTracer::default(),
+        true,
         BlockMode::WithinRange,
     )
     .await;
@@ -202,7 +193,7 @@ async fn test_trace_tx_assets_complex_with_eoa_out_of_range() {
     test_uniswap_swap_trace(
         from,
         "EOA",
-        TransactionTracer::default(),
+        true,
         BlockMode::OutOfRange,
     )
     .await;
@@ -216,7 +207,7 @@ async fn test_trace_tx_assets_complex_with_contract() {
     test_uniswap_swap_trace(
         from,
         "Contract",
-        TransactionTracer::default(),
+        true,
         BlockMode::Latest,
     )
     .await;
@@ -230,7 +221,7 @@ async fn test_trace_tx_assets_complex_with_contract_out_of_range() {
     test_uniswap_swap_trace(
         from,
         "Contract",
-        TransactionTracer::default(),
+        true,
         BlockMode::OutOfRange,
     )
     .await;
@@ -244,7 +235,7 @@ async fn test_trace_tx_assets_complex_with_contract_within_range() {
     test_uniswap_swap_trace(
         from,
         "Contract",
-        TransactionTracer::default(),
+        true,
         BlockMode::WithinRange,
     )
     .await;
@@ -258,7 +249,7 @@ async fn test_trace_tx_assets_complex_without_inspector() {
     test_uniswap_swap_trace(
         from,
         "No Inspector",
-        NoOpInspector::default(),
+        false,
         BlockMode::Latest,
     )
     .await;
@@ -272,7 +263,7 @@ async fn test_trace_tx_assets_complex_without_inspector_with_eoa() {
     test_uniswap_swap_trace(
         from,
         "No Inspector",
-        NoOpInspector::default(),
+        false,
         BlockMode::Latest,
     )
     .await;
@@ -286,7 +277,7 @@ async fn test_trace_tx_assets_complex_without_inspector_within_range() {
     test_uniswap_swap_trace(
         from,
         "No Inspector",
-        NoOpInspector::default(),
+        false,
         BlockMode::WithinRange,
     )
     .await;
@@ -300,7 +291,7 @@ async fn test_trace_tx_assets_complex_without_inspector_out_of_range() {
     test_uniswap_swap_trace(
         from,
         "No Inspector",
-        NoOpInspector::default(),
+        false,
         BlockMode::OutOfRange,
     )
     .await;

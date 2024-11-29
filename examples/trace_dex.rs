@@ -19,7 +19,7 @@ use alloy::{
 use anyhow::Result;
 use colored::*;
 use prettytable::{format, Cell, Row, Table};
-use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets, TransactionTracer};
+use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets};
 
 // Uniswap V2 Router interface for ETH -> Token swaps
 sol! {

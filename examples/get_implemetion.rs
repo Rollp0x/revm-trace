@@ -1,4 +1,3 @@
-// examples/proxy_contract.rs
 use alloy::primitives::address;
 use anyhow::Result;
 use revm_trace::{create_evm_instance, utils::proxy_utils::get_implement};
