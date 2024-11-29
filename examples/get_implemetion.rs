@@ -7,7 +7,7 @@ use revm_trace::{create_evm_instance, utils::proxy_utils::get_implement};
 async fn main() -> Result<()> {
     println!("Starting proxy implementation test...");
 
-    let mut evm = create_evm_instance("https://rpc.ankr.com/eth", None)?;
+    let mut evm = create_evm_instance("https://rpc.ankr.com/eth",Some(1))?;
     println!("✅ EVM instance created successfully");
 
     // USDC proxy contract address

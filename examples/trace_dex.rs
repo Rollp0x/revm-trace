@@ -19,7 +19,7 @@ use alloy::{
 use anyhow::Result;
 use colored::*;
 use prettytable::{format, Cell, Row, Table};
-use revm_trace::{create_evm_instance_with_inspector, trace_tx_assets, TransactionTracer};
+use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets, TransactionTracer};
 
 // Uniswap V2 Router interface for ETH -> Token swaps
 sol! {
@@ -67,8 +67,7 @@ fn format_amount(amount: U256, decimals: u8) -> String {
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize EVM with transaction tracer
-    let inspector = TransactionTracer::default();
-    let mut evm = create_evm_instance_with_inspector("https://rpc.ankr.com/eth", inspector, None)?;
+    let mut evm = create_evm_instance_with_tracer("https://rpc.ankr.com/eth", None)?;
 
     println!("{}", "✅ EVM instance created successfully\n".green());
 

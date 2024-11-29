@@ -3,9 +3,67 @@
 //! This module provides functionality for:
 //! - Tracing EVM transaction execution and call hierarchy
 //! - Tracking native token and ERC20 token transfers
-//! - Collecting token metadata (symbols and decimals)
+//! - Collecting transaction logs and events
 //! - Recording detailed execution traces and error information
 //! - Supporting multiple EVM-compatible chains (Ethereum, BSC, etc.)
+//!
+//! # Core Features
+//! - **Asset Tracking**: Monitor both native and ERC20 token transfers
+//! - **Log Collection**: Capture all emitted events during execution
+//! - **Call Tracing**: Record complete call hierarchy with results
+//! - **Token Metadata**: Collect token symbols and decimals
+//! - **Chain Support**: Work with any EVM-compatible blockchain
+//!
+//! # Example Usage
+//! ```no_run
+//! use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets};
+//! use alloy::primitives::{address, U256};
+//!
+//! # async fn example() -> anyhow::Result<()> {
+//! // Initialize EVM with tracer
+//! let mut evm = create_evm_instance_with_tracer(
+//!     "https://eth-mainnet.example.com",
+//!     Some(1)  // Ethereum mainnet
+//! )?;
+//!
+//! // Setup transaction parameters
+//! let from = address!("dead00000000000000000000000000000000beef");
+//! let to = address!("cafe00000000000000000000000000000000face");
+//! let value = U256::from(1000000000000000000u64); // 1 ETH
+//! let data = vec![]; // Empty calldata for simple transfer
+//!
+//! // Execute and trace the transaction
+//! let result = trace_tx_assets(&mut evm, from, to, value, data, "ETH").await;
+//!
+//! // Process results
+//! for transfer in &result.asset_transfers {
+//!     let token_info = result.token_info.get(&transfer.token)
+//!         .expect("Token info should exist");
+//!     println!("Transfer: {} {} from {} to {}",
+//!         transfer.value, token_info.symbol, transfer.from, transfer.to);
+//! }
+//!
+//! // Access transaction logs
+//! for log in &result.logs {
+//!     println!("Log from {}: {:?}", log.address, log);
+//! }
+//!
+//! // Check for errors
+//! if let Some(error) = result.error {
+//!     println!("Transaction failed: {}", error);
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Chain Support
+//! Supports all major EVM-compatible chains:
+//! - Ethereum (`"ETH"`)
+//! - BNB Smart Chain (`"BNB"`)
+//! - Polygon (`"MATIC"`)
+//! - Arbitrum (`"ETH"`)
+//! - Optimism (`"ETH"`)
+//! - And more...
 
 pub mod inspector;
 pub mod types;
@@ -20,14 +78,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use types::{ExecutionError, TokenInfo, TraceResult, TransferRecord};
 
-/// Simulates transaction execution and tracks all asset transfers and call traces
-///
-/// This function provides comprehensive transaction tracing capabilities by:
-/// - Recording all native token and ERC20 token transfers
-/// - Capturing complete call hierarchy with execution results
-/// - Collecting token metadata (symbols and decimals)
-/// - Tracking transaction errors and custom revert messages
-/// - Supporting multiple EVM-compatible blockchains
+/// Simulates transaction execution and tracks all asset transfers, logs, and call traces
 ///
 /// # Arguments
 /// * `evm` - Configured EVM instance with optional inspector
@@ -35,68 +86,22 @@ use types::{ExecutionError, TokenInfo, TraceResult, TransferRecord};
 /// * `to` - Transaction recipient address
 /// * `value` - Native token value to send (in wei)
 /// * `data` - Transaction calldata (function selector and parameters)
-/// * `native_token_symbol` - Native token symbol of the blockchain (e.g., "ETH" for Ethereum, "BNB" for BSC)
+/// * `native_token_symbol` - Native token symbol (e.g., "ETH", "BNB", "MATIC")
 ///
 /// # Returns
-/// Returns a `TraceResult` containing:
-/// * `asset_transfers` - Chronologically ordered list of all asset transfers
-/// * `token_info` - Metadata for all involved tokens (including native token)
-/// * `traces` - Complete call hierarchy with execution details
-/// * `error` - Detailed error information if the transaction failed
+/// A `TraceResult` containing:
+/// * `asset_transfers` - List of all token transfers
+/// * `token_info` - Token metadata (symbols and decimals)
+/// * `traces` - Complete call hierarchy
+/// * `logs` - All emitted transaction logs
+/// * `error` - Error information if transaction failed
 ///
-/// # Example
-/// ```no_run
-/// use revm_trace::{
-///     evm::create_evm_instance_with_inspector,
-///     trace::{trace_tx_assets, TransactionTracer},
-/// };
-/// use alloy::primitives::{address, U256};
-///
-/// # async fn example() -> anyhow::Result<()> {
-/// // Initialize EVM for Ethereum mainnet
-/// let mut evm = create_evm_instance_with_inspector(
-///     "https://eth-mainnet.example.com",
-///     TransactionTracer::default(),
-///     None
-/// )?;
-///
-/// // Setup transaction parameters
-/// let from = address!("dead00000000000000000000000000000000beef");
-/// let to = address!("cafe00000000000000000000000000000000face");
-/// let value = U256::from(1000000000000000000u64); // 1 native token
-/// let data = vec![]; // Empty calldata for simple transfer
-///
-/// // Choose native token based on the chain
-/// let native_token_symbol = "ETH";  // Use appropriate symbol for each chain:
-///                                   // "ETH" for Ethereum
-///                                   // "BNB" for BSC
-///                                   // "MATIC" for Polygon
-///
-/// // Execute and trace the transaction
-/// let result = trace_tx_assets(&mut evm, from, to, value, data, native_token_symbol).await;
-///
-/// // Process trace results
-/// for transfer in &result.asset_transfers {
-///     let token_info = result.token_info.get(&transfer.token)
-///         .expect("Token info should exist");
-///     println!("Transfer: {} {} from {} to {}",
-///         transfer.value, token_info.symbol, transfer.from, transfer.to);
-/// }
-///
-/// // Check for errors
-/// if let Some(error) = result.error {
-///     println!("Transaction failed: {}", error);
-/// }
-/// # Ok(())
-/// # }
-/// ```
-///
-/// # Notes
-/// - Using `TransactionTracer` enables comprehensive transfer and call tracking
-/// - Other inspectors will only record top-level native token transfers
-/// - Token metadata is collected regardless of transaction success
-/// - Execution errors are included in the result rather than thrown
-/// - Supports all EVM-compatible chains (Ethereum, BSC, Polygon, etc.)
+/// # Features
+/// - Records all native and ERC20 token transfers
+/// - Captures all transaction logs and events
+/// - Tracks complete call hierarchy
+/// - Collects token metadata
+/// - Handles transaction errors
 pub async fn trace_tx_assets<'a, T, N, P, I>(
     evm: &mut Evm<'a, I, WrapDatabaseRef<AlloyDB<T, N, P>>>,
     from: Address,
@@ -123,7 +128,7 @@ where
     // Execute transaction and return error of pre-execution
     let execution_result = evm.transact();
     if let Err(evm_error) = execution_result {
-        let mut result = TraceResult::new(vec![], HashMap::new(), vec![], native_token_symbol);
+        let mut result = TraceResult::new(vec![], HashMap::new(), vec![], vec![], native_token_symbol);
         result.error = Some(ExecutionError::Custom(format!("Pre-execution error: {}", evm_error)));
         return result;
     }
@@ -158,6 +163,13 @@ where
     } else {
         Vec::new()
     };
+    let logs = if let Some(inspector) =
+        (&evm.context.external as &dyn Any).downcast_ref::<TransactionTracer>()
+    {
+        inspector.logs.clone()
+    } else {
+        Vec::new()
+    };
 
-    TraceResult::new(transfers, token_info, traces, native_token_symbol)
+    TraceResult::new(transfers, token_info, traces, logs,native_token_symbol)
 }

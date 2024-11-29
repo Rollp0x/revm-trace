@@ -25,22 +25,20 @@
 //! cargo test --test trace_tests -- --nocapture
 //! ```
 
-use revm_trace::{create_evm_instance_with_inspector, trace_tx_assets, TransactionTracer};
+use revm_trace::{
+    create_evm_instance_with_tracer, evm::EvmDb, BlockEnvConfig,
+    trace_tx_assets, Reset, TransactionTracer
+};
 
 use alloy::{
-    network::Ethereum,
     primitives::{address, Address, U256},
-    providers::{Provider, ProviderBuilder, RootProvider},
+    providers::{Provider, ProviderBuilder},
     sol,
     sol_types::SolCall,
-    transports::http::{Client, Http},
 };
-use revm::{
-    db::{AlloyDB, WrapDatabaseRef},
-    inspectors::NoOpInspector,
-    Inspector,
+use revm::{ inspectors::NoOpInspector, GetInspector, Inspector
 };
-use std::any::Any;
+
 sol! {
     contract UniswapV2Router {
         function swapExactETHForTokens(
@@ -91,29 +89,29 @@ async fn test_uniswap_swap_trace<I>(
     inspector: I,
     block_mode: BlockMode,
 ) where
-    I: Inspector<WrapDatabaseRef<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>
-        + Default
-        + 'static
-        + Any,
+    I: Inspector<EvmDb> 
+        + GetInspector<EvmDb>
+        + Reset 
+        + Default 
+        + 'static,
 {
-    let has_inspector = inspector.type_id() != std::any::TypeId::of::<NoOpInspector>();
+    let has_inspector = std::any::TypeId::of::<I>() != std::any::TypeId::of::<NoOpInspector>();
 
     // Create provider and get current block
-    let provider = ProviderBuilder::new().on_http("https://rpc.ankr.com/eth".parse().unwrap());
+    let provider = ProviderBuilder::new()
+        .on_http("https://rpc.ankr.com/eth".parse().unwrap());
     let latest_block = provider.get_block_number().await.unwrap();
     println!("Current block number: {}", latest_block);
 
-    // Determine block number based on BlockMode
-    let block_number = match block_mode {
-        BlockMode::Latest => None,
-        BlockMode::WithinRange => Some(latest_block - 120), // Use block from recent history
-        BlockMode::OutOfRange => Some(latest_block - 100000), // Use block from distant history
+    let mut evm = create_evm_instance_with_tracer(
+        "https://rpc.ankr.com/eth",
+        None
+    ).unwrap();
+    match block_mode {
+        BlockMode::Latest => {},
+        BlockMode::WithinRange => { let _ = evm.set_block_number(latest_block - 120); },
+        BlockMode::OutOfRange => { let _ = evm.set_block_number(latest_block - 10000); },
     };
-    println!("Using block number: {:?}", block_number);
-
-    let mut evm =
-        create_evm_instance_with_inspector("https://rpc.ankr.com/eth", inspector, block_number)
-            .unwrap();
 
     let router = address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"); // Uniswap V2 Router
     let weth = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");

@@ -2,13 +2,12 @@
 use alloy::primitives::{address, U256};
 use anyhow::Result;
 use colored::*;
-use revm_trace::{create_evm_instance_with_inspector, trace_tx_assets, TransactionTracer};
+use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize EVM with transaction tracer
-    let inspector = TransactionTracer::default();
-    let mut evm = create_evm_instance_with_inspector("https://rpc.ankr.com/eth", inspector, None)?;
+    let mut evm = create_evm_instance_with_tracer("https://rpc.ankr.com/eth", None)?;
     println!("{}", "✅ EVM instance created successfully\n".green());
     let safe = address!("Ab778bF14C7F879D33FAA7aeD44dA68AaA02513a");
     let to = address!("E8ccbb36816e5f2fB69fBe6fbd46d7e370435d84");

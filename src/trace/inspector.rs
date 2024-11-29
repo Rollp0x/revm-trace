@@ -3,8 +3,43 @@
 //! This module provides the `TransactionTracer` inspector implementation for:
 //! - Tracking ETH and token transfers
 //! - Recording detailed call traces
+//! - Collecting all transaction logs
 //! - Parsing custom error messages
 //! - Formatting execution traces for analysis
+//!
+//! # Features
+//! - **Asset Tracking**: Monitors both native token and ERC20 token transfers
+//! - **Call Tracing**: Records complete call hierarchy with gas usage
+//! - **Log Collection**: Captures all emitted logs during transaction execution
+//! - **Error Handling**: Parses both EVM and custom Solidity error messages
+//! - **Detailed Traces**: Provides formatted output for debugging and analysis
+//!
+//! # Example
+//! ```no_run
+//! use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets};
+//!
+//! # async fn example() -> anyhow::Result<()> {
+//! let mut evm = create_evm_instance_with_tracer(
+//!     "https://eth-mainnet.example.com",
+//!     Some(1)
+//! )?;
+//!
+//! let result = trace_tx_assets(/* ... */).await?;
+//!
+//! // Access transaction logs
+//! for log in result.inspector.get_logs() {
+//!     println!("Log from {}: {:?}", log.address, log);
+//! }
+//!
+//! // Check for errors
+//! if let Some(error_trace) = result.inspector.find_error_trace() {
+//!     if let Some(error_msg) = error_trace.format_error() {
+//!         println!("Transaction failed: {}", error_msg);
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
 
 use super::types::{CallTrace, ExecutionError, TransferRecord};
 use alloy::primitives::{hex, keccak256, Address, FixedBytes, Log, U256};
@@ -54,13 +89,6 @@ impl fmt::Display for ExecutionError {
 }
 
 /// Inspector for comprehensive transaction execution tracing
-///
-/// Tracks and records:
-/// - Native token (ETH/BNB/etc) transfers
-/// - ERC20 token transfers via Transfer events
-/// - Complete call hierarchy with gas usage
-/// - Contract errors (both EVM and custom errors)
-/// - Detailed execution traces for debugging
 #[derive(Default)]
 pub struct TransactionTracer {
     /// Chronologically ordered list of all asset transfers
@@ -69,6 +97,8 @@ pub struct TransactionTracer {
     pub call_stack: Vec<CallTrace>,
     /// Complete list of all calls made during execution
     pub traces: Vec<CallTrace>,
+    /// All emitted logs during transaction execution
+    pub logs: Vec<Log>,
 }
 
 impl TransactionTracer {
@@ -76,8 +106,9 @@ impl TransactionTracer {
     pub fn new() -> Self {
         Self {
             transfers: Vec::new(),
-            call_stack: Vec::new(), // Track nested calls
-            traces: Vec::new(),     // Store all call traces
+            call_stack: Vec::new(),
+            traces: Vec::new(),
+            logs: Vec::new(),
         }
     }
 
@@ -131,6 +162,11 @@ impl TransactionTracer {
             }
         }
         None
+    }
+
+    /// Returns all collected logs from the transaction
+    pub fn get_logs(&self) -> &[Log] {
+        &self.logs
     }
 }
 
@@ -240,6 +276,10 @@ impl<DB: Database> Inspector<DB> for TransactionTracer {
     ///
     /// Parses Transfer events to track token movements between addresses
     fn log(&mut self, _interp: &mut Interpreter, _context: &mut EvmContext<DB>, log: &Log) {
+        // Store all logs
+        self.logs.push(log.clone());
+        
+        // Continue processing Transfer events
         if let Some((from, to, amount)) = parse_transfer_log(log.topics(), &log.data.data) {
             self.transfers
                 .push(TransferRecord::new_token(log.address, from, to, amount));

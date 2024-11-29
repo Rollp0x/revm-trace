@@ -2,14 +2,22 @@
 //!
 //! This module defines the core data structures used for:
 //! - Asset transfer tracking (native token and ERC20 tokens)
-//! - Call trace recording
+//! - Transaction logs and events collection
+//! - Call trace recording and hierarchy
+//! - Log and event analysis
 //! - Error handling and reporting
 //! - Result formatting and analysis
 //!
-//! All types in this module implement `Serialize` and `Deserialize` traits from serde,
-//! making them suitable for JSON serialization and external API usage.
+//! # Key Components
+//! - `TraceResult`: Comprehensive transaction execution results including logs
+//! - `TransferRecord`: Individual token transfer events
+//! - `CallTrace`: Detailed call execution information
+//! - `TokenInfo`: Token metadata and formatting
+//! - `ExecutionError`: Structured error reporting
+//!
+//! All types implement `Serialize` and `Deserialize` for JSON compatibility.
 
-use alloy::primitives::{address, hex, Address, Bytes, U256};
+use alloy::primitives::{address, hex, Address, Bytes, U256,Log};
 use revm::interpreter::{CallScheme, Gas, InstructionResult};
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
@@ -81,10 +89,12 @@ pub const NATIVE_TOKEN_ADDRESS: Address = address!("0000000000000000000000000000
 pub struct TraceResult {
     /// Chronologically ordered list of all asset transfers
     pub asset_transfers: Vec<TransferRecord>,
-    /// Map of token addresses to their tokenInfo
+    /// Map of token addresses to their metadata
     pub token_info: HashMap<Address, TokenInfo>,
-    /// Complete hierarchy of calls made during transaction execution
+    /// Complete hierarchy of calls made during execution
     pub traces: Vec<CallTrace>,
+    /// All emitted logs during transaction execution
+    pub logs: Vec<Log>,
     /// Error information if the transaction failed
     pub error: Option<ExecutionError>,
 }
@@ -92,12 +102,23 @@ pub struct TraceResult {
 impl TraceResult {
     /// Creates a new trace result with the given data
     ///
-    /// Automatically adds native tokenInfo to token_info and extracts error information
-    /// from traces if present.
+    /// # Arguments
+    /// * `transfers` - List of all token transfers
+    /// * `token_info` - Token metadata map
+    /// * `traces` - Call execution traces
+    /// * `logs` - Transaction event logs
+    /// * `raw_token_symbol` - Native token symbol (e.g., "ETH", "BNB")
+    ///
+    /// # Features
+    /// - Automatically adds native token info
+    /// - Extracts error information from traces
+    /// - Preserves chronological order of transfers
+    /// - Maintains complete log history
     pub fn new(
         transfers: Vec<TransferRecord>,
         mut token_info: HashMap<Address, TokenInfo>,
         traces: Vec<CallTrace>,
+        logs: Vec<Log>,
         raw_token_symbol: &str,
     ) -> Self {
         // Add native tokenInfo
@@ -119,6 +140,7 @@ impl TraceResult {
             asset_transfers: transfers,
             token_info,
             traces,
+            logs,
             error,
         }
     }
@@ -219,7 +241,7 @@ impl TraceResult {
 pub struct CallTrace {
     /// Address that initiated the call
     pub from: Address,
-    /// Type of call (CALL, STATICCALL, DELEGATECALL, etc)
+    /// Call type (CALL, STATICCALL, DELEGATECALL, etc)
     pub scheme: CallScheme,
     /// Maximum gas allocated for this call
     pub gas_limit: u64,
@@ -227,20 +249,20 @@ pub struct CallTrace {
     pub input: Bytes,
     /// Target contract address
     pub to: Address,
-    /// Value transferred with the call
+    /// Native token value transferred with the call (in wei)
     pub value: Option<U256>,
     /// Execution result (Success, Revert, etc)
     pub result: Option<InstructionResult>,
-    /// Detailed gas usage information
+    /// Gas usage details
     pub gas: Option<Gas>,
     /// Call output data (return values or revert data)
     pub output: Option<Bytes>,
-    /// Nested calls made by this call
+    /// Nested calls made during execution
     pub subtraces: Vec<CallTrace>,
-    /// Position in the call tree (e.g., [0,1] means second subcall of first call)
+    /// Call position in execution tree (e.g., [0,1] = second subcall of first call)
     pub trace_address: Vec<usize>,
-    /// Error information if the call failed
+    /// Error details if call failed
     pub error: Option<ExecutionError>,
-    /// Whether this call is where an error originated
+    /// Indicates if this call originated an error
     pub error_origin: bool,
 }

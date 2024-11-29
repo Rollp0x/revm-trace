@@ -1,48 +1,39 @@
 //! EVM simulation environment setup and configuration
 //!
 //! This module provides utilities for creating and configuring REVM instances
-//! with various inspectors and development-friendly settings. It simplifies the
-//! process of setting up an EVM environment for transaction simulation and tracing.
+//! with either NoOpInspector or TransactionTracer. It simplifies the process of 
+//! setting up an EVM environment for transaction simulation and tracing.
 //!
 //! # Key Features
-//! - Configurable block number for historical state access
-//! - Support for custom transaction inspectors
+//! - Chain ID configuration for different networks
 //! - Development-friendly default settings
+//! - Two inspector options:
+//!   - NoOpInspector for basic simulation
+//!   - TransactionTracer for detailed execution tracing
 //! - Flexible database configuration with AlloyDB
-//!
-//! # Historical State Access
-//! When accessing historical blockchain state, the capabilities depend on the node type:
-//!
-//! - **Archive Nodes**: Can access any historical block state
-//! - **Full Nodes**: Limited to recent blocks (typically ~128 blocks)
-//!
-//! The actual accessible block range varies by provider and node configuration.
-//! Consider using archive nodes for deep historical analysis.
 //!
 //! # Example Usage
 //! ```no_run
-//! use revm_trace::evm::{create_evm_instance, create_evm_instance_with_inspector};
-//! use revm_trace::TransactionTracer;
+//! use revm_trace::evm::{create_evm_instance, create_evm_instance_with_tracer};
 //!
 //! # async fn example() -> anyhow::Result<()> {
-//! // Create EVM instance with default inspector
+//! // Create EVM instance with NoOpInspector for Ethereum mainnet
 //! let evm = create_evm_instance(
 //!     "https://eth-mainnet.example.com",
-//!     None  // Use latest block
+//!     Some(1)  // Ethereum mainnet chain ID
 //! )?;
 //!
-//! // Create EVM instance with custom inspector
-//! let evm = create_evm_instance_with_inspector(
-//!     "https://eth-mainnet.example.com",
-//!     TransactionTracer::default(),
-//!     Some(17_000_000)  // Use specific block
+//! // Create EVM instance with TransactionTracer for Goerli testnet
+//! let evm = create_evm_instance_with_tracer(
+//!     "https://eth-goerli.example.com",
+//!     Some(5)  // Goerli testnet chain ID
 //! )?;
 //! # Ok(())
 //! # }
 //! ```
 
 use alloy::{
-    eips::{BlockId, BlockNumberOrTag},
+    eips::BlockId,
     network::Ethereum,
     providers::{ProviderBuilder, RootProvider},
     transports::http::{Client, Http},
@@ -55,6 +46,8 @@ use revm::{
     inspectors::NoOpInspector,
     Evm, GetInspector, Inspector,
 };
+
+use crate::{Reset, TransactionTracer};
 
 /// Type alias for the database used in EVM instances.
 ///
@@ -79,12 +72,11 @@ pub type InspectorEvm<I> = Evm<'static, I, EvmDb>;
 
 /// Creates a new EVM instance with default configuration using NoOpInspector.
 ///
-/// Creates and configures an EVM instance with development-friendly settings and
-/// the default NoOpInspector for basic transaction simulation.
-///
 /// # Arguments
 /// * `rpc_url` - The URL of the Ethereum RPC endpoint (e.g., Infura, Alchemy, or local node)
-/// * `block_number` - Optional block number for the simulation. If None, uses the latest block
+/// * `chain_id` - Optional chain ID for the EVM environment
+///   - None: Uses default chain ID
+///   - Some(id): Uses specified chain ID (e.g., 1 for Ethereum Mainnet)
 ///
 /// # Returns
 /// * `Ok(DefaultEvm)` - A configured EVM instance with NoOpInspector
@@ -94,88 +86,72 @@ pub type InspectorEvm<I> = Evm<'static, I, EvmDb>;
 /// ```no_run
 /// use revm_trace::evm::create_evm_instance;
 ///
-/// # async fn example() -> anyhow::Result<()> {
+/// # fn main() -> anyhow::Result<()> {
 /// let evm = create_evm_instance(
-///     "https://eth-mainnet.alchemyapi.io/v2/your-api-key",
-///     Some(17_000_000)  // Specific block number
+///     "https://eth-mainnet.example.com",
+///     Some(1)  // Ethereum mainnet
 /// )?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn create_evm_instance(rpc_url: &str, block_number: Option<u64>) -> Result<DefaultEvm> {
-    let inspector = NoOpInspector;
-    create_evm_instance_with_inspector(rpc_url, inspector, block_number)
+pub fn create_evm_instance(rpc_url: &str, chain_id: Option<u64>) -> Result<DefaultEvm> {
+    create_evm_internal(rpc_url, NoOpInspector, chain_id)
 }
 
-/// Creates an EVM instance with a custom inspector
+/// Creates an EVM instance with TransactionTracer for detailed execution tracing.
 ///
 /// # Arguments
-/// * `rpc_url` - RPC endpoint URL
-/// * `inspector` - Custom inspector implementation
-/// * `block_number` - Optional block number for historical state access
-///   - None: Uses latest block
-///   - Some(number): Uses specified block
+/// * `rpc_url` - The URL of the Ethereum RPC endpoint
+/// * `chain_id` - Optional chain ID for the EVM environment
+///   - None: Uses default chain ID
+///   - Some(id): Uses specified chain ID (e.g., 1 for Ethereum Mainnet)
 ///
-/// # Node State Access Limitations
-/// Historical state access capabilities depend on the node type and configuration:
+/// # Returns
+/// * `Ok(InspectorEvm<TransactionTracer>)` - A configured EVM instance with TransactionTracer
+/// * `Err(Error)` - If the RPC URL is invalid or connection fails
 ///
-/// - **Archive Nodes**
-///   - Can access state from any historical block
-///   - Typically provided by premium services (Alchemy, QuickNode, etc.)
-///   - Required for deep historical analysis
-///
-/// - **Full Nodes**
-///   - Limited historical state access
-///   - Actual block depth varies by node configuration
-///   - Default ranges vary by provider:
-///     - Infura: ~128 blocks
-///     - Alchemy: ~128 blocks (without archive access)
-///     - Custom nodes: Depends on configuration
+/// # Features
+/// - Tracks all EVM operations
+/// - Records token transfers
+/// - Captures contract interactions
+/// - Provides detailed execution traces
 ///
 /// # Example
 /// ```no_run
-/// use revm_trace::{create_evm_instance_with_inspector, TransactionTracer};
+/// use revm_trace::evm::create_evm_instance_with_tracer;
 ///
 /// # fn main() -> anyhow::Result<()> {
-/// // Use latest block
-/// let evm = create_evm_instance_with_inspector(
-///     "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY",
-///     TransactionTracer::default(),
-///     None
-/// )?;
-///
-/// // Use specific block (ensure your node supports historical access)
-/// let evm = create_evm_instance_with_inspector(
-///     "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY",
-///     TransactionTracer::default(),
-///     Some(17_000_000)
+/// let evm = create_evm_instance_with_tracer(
+///     "https://eth-goerli.example.com",
+///     Some(5)  // Goerli testnet
 /// )?;
 /// # Ok(())
 /// # }
 /// ```
-///
-/// # Note
-/// When accessing historical state:
-/// - Verify your node type (archive vs full)
-/// - Check provider documentation for specific limitations
-/// - Consider using archive nodes for deep historical analysis
-/// - Failed state access will result in runtime errors
-pub fn create_evm_instance_with_inspector<I>(
+pub fn create_evm_instance_with_tracer(
+    rpc_url: &str,
+    chain_id: Option<u64>,
+) -> Result<InspectorEvm<TransactionTracer>> {
+    create_evm_internal(rpc_url, TransactionTracer::default(), chain_id)
+}
+
+/// Internal function to create EVM instance with common configuration.
+/// 
+/// This function handles the common setup logic for both inspector types:
+/// - Creates and configures AlloyDB with the provided RPC URL
+/// - Sets up development-friendly EVM settings
+/// - Configures chain ID if provided
+/// - Initializes the inspector
+fn create_evm_internal<I>(
     rpc_url: &str,
     inspector: I,
-    block_number: Option<u64>,
+    chain_id: Option<u64>,
 ) -> Result<InspectorEvm<I>>
 where
-    I: Inspector<EvmDb> + GetInspector<EvmDb>,
+    I: Inspector<EvmDb> + GetInspector<EvmDb> + Reset + 'static,
 {
     let provider = ProviderBuilder::new().on_http(rpc_url.parse()?);
-
-    let block_id = match block_number {
-        Some(number) => BlockId::Number(BlockNumberOrTag::Number(number)),
-        None => BlockId::latest(),
-    };
-
-    let alloy_db = AlloyDB::new(provider, block_id).ok_or_else(|| {
+    let alloy_db = AlloyDB::new(provider, BlockId::latest()).ok_or_else(|| {
         anyhow!(
             "Failed to create AlloyDB. Possible reasons:\n\
              1. Invalid RPC URL: {}\n\
@@ -203,5 +179,10 @@ where
     cfg.limit_contract_code_size = None;
     cfg.disable_base_fee = true;
 
+    if let Some(chain_id) = chain_id {
+        cfg.chain_id = chain_id;
+        evm.tx_mut().chain_id = Some(chain_id);
+    }
+    
     Ok(evm)
 }
