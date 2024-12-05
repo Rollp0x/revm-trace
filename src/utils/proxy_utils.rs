@@ -10,18 +10,15 @@
 //!   - Beacon Proxy
 
 use alloy::{
-    network::Network,
     primitives::{Address, U256},
     providers::Provider,
     transports::Transport,
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use revm::{
-    db::{AlloyDB, Database, WrapDatabaseRef},
-    Evm, Inspector,
-};
+use revm::db::Database;
 use std::str::FromStr;
+use crate::evm::TraceEvm;
 
 /// Storage slot for EIP-1967 implementation address
 ///
@@ -110,15 +107,13 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 /// - EIP-1822: Universal Upgradeable Proxy Standard (UUPS)
 /// - OpenZeppelin: Legacy proxy implementation
 /// - Beacon: Proxy pattern for multiple contracts sharing same implementation
-pub async fn get_implement<T, N, P, I>(
-    evm: &mut Evm<'_, I, WrapDatabaseRef<AlloyDB<T, N, P>>>,
+pub async fn get_implement<T, P>(
+    evm: &mut TraceEvm<'_, T, P>,
     contract: Address,
 ) -> Result<Option<Address>>
 where
     T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
-    I: Inspector<WrapDatabaseRef<AlloyDB<T, N, P>>> + Default,
+    P: Provider<T>,
 {
     // First verify if the contract exists
     if evm.db_mut().basic(contract)?.is_none() {

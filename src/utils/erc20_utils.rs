@@ -7,7 +7,6 @@
 //! - Error handling for token interactions
 
 use alloy::{
-    network::Network,
     primitives::{Address, TxKind, U256},
     providers::Provider,
     sol,
@@ -15,11 +14,8 @@ use alloy::{
     transports::Transport,
 };
 use anyhow::{anyhow, Result};
-use revm::{
-    db::{AlloyDB, WrapDatabaseRef},
-    primitives::{ExecutionResult, Output},
-    Evm, Inspector,
-};
+use revm::primitives::{ExecutionResult, Output};
+use crate::evm::TraceEvm;
 
 // ERC20 interface for common token functions
 //
@@ -60,16 +56,14 @@ sol! {
 /// # Ok(())
 /// # }
 /// ```
-pub fn get_token_balance<T, N, P, I>(
-    evm: &mut Evm<I, WrapDatabaseRef<AlloyDB<T, N, P>>>,
+pub fn get_token_balance<T, P>(
+    evm: &mut TraceEvm<'_, T, P>,
     token: Address,
     account: Address,
 ) -> Result<U256>
 where
     T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
-    I: Inspector<WrapDatabaseRef<AlloyDB<T, N, P>>> + Default,
+    P: Provider<T>,
 {
     let encoded = balanceOfCall { account }.abi_encode();
     let tx = evm.tx_mut();
@@ -121,15 +115,13 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub fn get_token_decimals<T, N, P, I>(
-    evm: &mut Evm<I, WrapDatabaseRef<AlloyDB<T, N, P>>>,
+pub fn get_token_decimals<T, P>(
+    evm: &mut TraceEvm<'_, T, P>,
     token: Address,
 ) -> Result<u8>
 where
     T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
-    I: Inspector<WrapDatabaseRef<AlloyDB<T, N, P>>> + Default,
+    P: Provider<T>,
 {
     let encoded = decimalsCall {}.abi_encode();
     let tx = evm.tx_mut();
@@ -184,15 +176,13 @@ where
 /// # Note
 /// Some older or non-standard tokens might not implement the symbol function
 /// or might implement it in a non-standard way.
-pub fn get_token_symbol<T, N, P, I>(
-    evm: &mut Evm<I, WrapDatabaseRef<AlloyDB<T, N, P>>>,
+pub fn get_token_symbol<'a, T, P>(
+    evm: &mut TraceEvm<'a, T, P>,
     token: Address,
 ) -> Result<String>
 where
     T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N>,
-    I: Inspector<WrapDatabaseRef<AlloyDB<T, N, P>>> + Default,
+    P: Provider<T>,
 {
     let encoded = symbolCall {}.abi_encode();
     let tx = evm.tx_mut();

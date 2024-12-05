@@ -1,119 +1,115 @@
-//! # REVM Transaction Simulator and Asset Tracer
+//! # REVM Transaction Simulator and Analyzer
 //!
-//! A library for simulating EVM transactions and tracking asset transfers, logs, and events
-//! across multiple EVM-compatible chains.
+//! A library for simulating EVM transactions and analyzing their execution results.
 //!
 //! ## Core Features
 //!
 //! - **Transaction Simulation**
-//!   - Full EVM execution environment
-//!   - Support for multiple EVM-compatible chains
-//!   - Historical block state access
-//!   - Custom inspector integration
-//!   - Gas-free simulation mode
+//!   - Detailed execution traces
+//!   - Asset transfer tracking
+//!   - Call hierarchy analysis
+//!   - Error origin detection
 //!
-//! - **Asset and Event Tracking**
-//!   - Native token transfers (ETH/BNB/MATIC)
+//! - **Asset Tracking**
+//!   - Native token transfers
 //!   - ERC20 token transfers
-//!   - Transaction logs and events
 //!   - Token metadata collection
-//!   - Chronological ordering
 //!
 //! - **Execution Analysis**
 //!   - Complete call traces
-//!   - Event log collection
-//!   - Proxy contract detection
-//!   - Error tracking and analysis
+//!   - Event logs collection
+//!   - State change tracking
+//!   - Comprehensive status reporting
+//!   - Error propagation analysis
 //!
-//! ## Quick Start
+//! ## Example Usage
 //!
 //! ```rust,no_run
 //! use revm_trace::{
-//!     trace::trace_tx_assets,
-//!     create_evm_instance_with_tracer,
-//!     TransactionTracer,
+//!     create_evm,
+//!     BlockEnv,
+//!     SimulationTx,
+//!     SimulationBatch,
+//!     Tracer,
+//!     TransactionStatus,
 //! };
-//! use alloy::primitives::{address, U256};
+//! use alloy::primitives::{address, U256, TxKind};
 //!
-//! async fn example() -> anyhow::Result<()> {
-//!     // Initialize EVM with transaction tracer
-//!     let mut evm = create_evm_instance_with_tracer(
-//!         "https://eth-mainnet.g.alchemy.com/v2/YOUR-API-KEY",
-//!         Some(1)  // Chain ID for Ethereum mainnet
-//!     )?;
-//!     
-//!     // Setup transaction parameters
-//!     let from = address!("dead00000000000000000000000000000000beef");
-//!     let to = address!("dac17f958d2ee523a2206206994597c13d831ec7"); // USDT
-//!     let value = U256::from(1000000000000000000u64); // 1 ETH
-//!     let data = vec![]; // Empty calldata
-//!     
-//!     // Simulate transaction and analyze results
-//!     let result = trace_tx_assets(&mut evm, from, to, value, data, "ETH").await;
-//!     
-//!     // Process transfers
-//!     for transfer in result.asset_transfers() {
-//!         let token_info = result.token_info.get(&transfer.token)
-//!             .expect("Token info should exist");
-//!         println!(
-//!             "Transfer: {} {} from {} to {}",
-//!             transfer.value, token_info.symbol,
-//!             transfer.from, transfer.to
-//!         );
+//! # async fn example() -> anyhow::Result<()> {
+//! // Initialize EVM
+//! let mut evm = create_evm(
+//!     "https://rpc.ankr.com/eth",
+//!     Some(1),  // Ethereum mainnet
+//!     None,     // No custom configs
+//! )?;
+//!
+//! // Create simulation transaction
+//! let tx = SimulationTx {
+//!     caller: address!("dead00000000000000000000000000000000beef"),
+//!     transact_to: TxKind::Call(address!("dac17f958d2ee523a2206206994597c13d831ec7")),
+//!     value: U256::from(1000000000000000000u64), // 1 ETH
+//!     data: vec![].into(),
+//! };
+//!
+//! // Execute transaction
+//! let result = evm.trace_tx(
+//!     tx,
+//!     BlockEnv {
+//!         number: 18000000,
+//!         timestamp: 1700000000,
+//!     },
+//! )?;
+//!
+//! // Process results
+//! match result.execution_status() {
+//!     TransactionStatus::Success => {
+//!         println!("Transaction succeeded!");
+//!         for transfer in result.asset_transfers {
+//!             println!(
+//!                 "Transfer: {} from {} to {}",
+//!                 transfer.value, transfer.from, transfer.to
+//!             );
+//!         }
 //!     }
-//!     
-//!     // Process logs
-//!     for log in result.logs {
-//!         println!("Log from {}: {:?}", log.address, log);
+//!     TransactionStatus::PartialSuccess => {
+//!         println!("Transaction succeeded with some internal errors");
 //!     }
-//!     
-//!     // Check for errors
-//!     if let Some(error) = result.error {
+//!     TransactionStatus::Failed { error, origin_error } => {
 //!         println!("Transaction failed: {}", error);
+//!         if let Some(origin) = origin_error {
+//!             println!("Original error: {}", origin);
+//!         }
 //!     }
-//!     
-//!     Ok(())
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! ## Module Structure
 //!
-//! - [`evm`]: EVM configuration and initialization
-//! - [`trace`]: Transaction tracing and event tracking
-//! - [`utils`]: Helper functions for contract interactions
-//! - [`traits`]: Core traits for inspector and block configuration
-//!
-//! ## Core Types
-//!
-//! - [`TraceResult`]: Complete transaction analysis results
-//! - [`TransferRecord`]: Individual asset transfer records
-//! - [`TokenInfo`]: Token metadata
-//! - [`TransactionTracer`]: Transaction tracking inspector
-//! - [`ExecutionError`]: Structured error information
-//!
-//! ## Supported Networks
-//!
-//! Compatible with all EVM-based networks:
-//! - Ethereum (ETH)
-//! - BNB Smart Chain (BNB)
-//! - Polygon (MATIC)
-//! - Arbitrum (ETH)
-//! - Optimism (ETH)
-//! - And more...
+//! - `evm`: EVM initialization and configuration
+//! - `trace`: Transaction tracing implementation
+//! - `inspector`: EVM execution inspector
+//! - `types`: Core data structures
+//! - `utils`: Helper functions
 
+pub mod types;
 pub mod evm;
 pub mod trace;
 pub mod utils;
-pub mod traits;
+mod inspector;
 
-// Re-export commonly used types and functions
-pub use evm::{create_evm_instance, create_evm_instance_with_tracer};
-pub use trace::{
-    inspector::TransactionTracer,
-    trace_tx_assets,
-    types::{
-        TokenInfo, TraceResult, TransferRecord, ExecutionError,
-        CallTrace, NATIVE_TOKEN_ADDRESS,
-    },
+// Re-export only the essential types and functions
+pub use evm::{create_evm,TraceEvm};
+pub use trace::Tracer;
+pub use types::{
+    BlockEnv,
+    SimulationTx,
+    SimulationBatch,
+    TraceResult,
+    TokenTransfer,
+    TokenConfig,
+    ExecutionStatus,
+    FailureKind,
+    TransactionStatus
 };
-pub use traits::{GetTransactionTracer, Reset, BlockEnvConfig};

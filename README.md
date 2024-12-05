@@ -1,214 +1,243 @@
-# REVM Transaction Simulator and Asset Tracer
+# REVM Transaction Simulator and Analyzer
 
-A Rust library for simulating EVM-compatible blockchain transactions and tracking asset transfers, logs, and events using REVM. This library provides a safe and efficient way to simulate transactions and analyze their effects without actually submitting them to the blockchain.
+A Rust library that combines powerful transaction simulation with comprehensive analysis capabilities for EVM-based blockchains. Built on [REVM](https://github.com/bluealloy/revm), this tool enables you to:
 
-## Features
+- **Simulate** complex transactions and their interactions before actual execution
+- **Analyze** potential outcomes, asset transfers, and state changes
+- **Detect** possible errors and their root causes
+- **Preview** all transaction effects in a safe, isolated environment
 
-- **Transaction Simulation**: Simulate transactions on any EVM-compatible chain (Ethereum, BSC, Polygon, etc.)
-- **Asset Transfer Tracking**: Track both native tokens (ETH, BNB, MATIC, etc.) and ERC20 token transfers
-- **Event Collection**: Capture and analyze all transaction logs and events
-- **Token Information**: Automatically collect token symbols and decimals
-- **Proxy Support**: Handle proxy contracts with implementation resolution
-- **Safe Execution**: Simulate transactions without affecting the blockchain
-- **Flexible Inspector**: Customizable transaction tracing
+Perfect for:
+- DeFi developers testing complex interactions
+- Wallet developers validating transaction safety
+- Protocol teams analyzing contract behaviors
+- Security researchers investigating transaction patterns
+
+## Key Features
+
+- **Advanced Transaction Simulation**
+  - Preview transaction outcomes without on-chain execution
+  - Simulate complex DeFi interactions safely
+  - Test multi-contract interactions
+  - Support for all EVM-compatible chains
+
+- **Comprehensive Analysis**
+  - Track potential asset transfers (native and ERC20)
+  - Analyze complete call traces
+  - Identify state changes
+  - Detect and locate errors
+  - Collect and decode events
+
+- **Developer-Friendly**
+  - Safe, isolated simulation environment
+  - Detailed execution reports
+  - No gas fees or real transactions
+  - Support for historical state analysis
 
 ## Installation
 
 Add this to your `Cargo.toml`:
 ```toml
-revm-trace = "1.0.0"
+revm-trace = "2.0.0"
 ```
 
 ## Quick Start
 
 ```rust
 use revm_trace::{
-  trace_tx_assets,
-  create_evm_instance_with_tracer,
+    create_evm,
+    BlockEnv,
+    SimulationTx,
+    SimulationBatch,
+    Tracer,
+    types::TxKind,
+    TransactionStatus,
 };
-async fn example() -> anyhow::Result<()> {
-  // Create EVM instance with transaction tracer
-  let inspector = TransactionTracer::default();
-  
-  let mut evm = create_evm_instance_with_tracer(
-    "https://rpc.ankr.com/eth", // Can be any EVM-compatible chain RPC
-    Some(1) // Chain ID: 1 for Ethereum mainnet
-  )?;
-  
-  // Simulate transaction and track transfers
-  let result = trace_tx_assets(
-    &mut evm,
-    from_address,
-    to_address,
-    value,
-    call_data,
-    "ETH"  // Native token symbol
-  ).await;
-  
-  // Process results
-  for transfer in result.asset_transfers() {
-    if transfer.is_native_token() {
-      println!("Native token transfer: {} -> {}: {}",
-        transfer.from,
-        transfer.to,
-        transfer.value
-      );
-    } else {
-      let token_info = result.token_info.get(&transfer.token)
-        .expect("Token info should exist");
-      println!("Token transfer: {} {} -> {}: {}",
-        token_info.symbol,
-        transfer.from,
-        transfer.to,
-        transfer.value
-      );
+use alloy::primitives::{address, U256};
+
+async fn simulate_transfer_eth() -> anyhow::Result<()> {
+    // Initialize simulation environment
+    let mut evm = create_evm(
+        "https://rpc.ankr.com/eth",
+        Some(1), // Ethereum mainnet
+        None,    // No custom configs
+    )?;
+
+    // Prepare transaction to simulate
+    let tx = SimulationTx {
+        caller: address!("dead00000000000000000000000000000000beef"),
+        transact_to: TxKind::Call(address!("dac17f958d2ee523a2206206994597c13d831ec7")), // USDT
+        value: U256::from(1000000000000000000u64), // 1 ETH
+        data: vec![].into(), // Transaction data (e.g., swap function call)
+    };
+
+    // Simulate transaction and analyze potential outcomes
+    let result = evm.trace_tx(
+        tx,
+        BlockEnv {
+            number: 18000000,
+            timestamp: 1700000000,
+        },
+    )?;
+
+    // Analyze simulation results
+    match result.execution_status() {
+        TransactionStatus::Success => {
+            println!("Transaction would succeed!");
+            // Preview potential asset transfers
+            for transfer in result.asset_transfers {
+                println!(
+                    "Predicted transfer: {} from {} to {}",
+                    transfer.value, transfer.from, transfer.to
+                );
+            }
+            // Preview emitted events
+            for log in result.logs {
+                println!("Expected event: {:?}", log);
+            }
+        }
+        TransactionStatus::PartialSuccess => {
+            println!("Transaction succeeded but with some internal errors");
+        }
+        TransactionStatus::Failed { error, origin_error } => {
+            println!("Transaction would fail:");
+            println!("Error: {}", error);
+            if let Some(origin) = origin_error {
+                println!("Original error: {}", origin);
+            }
+        }
     }
-  }
-  // Process logs
-  for log in result.logs {
-    println!("Log from {}: {:?}", log.address, log);
-  }
-  Ok(())
+
+    Ok(())
 }
 ```
+
+
 
 ## Usage Examples
 
-### Tracking DeFi Transactions
+### Simulating Multiple Transactions
 
 ```rust
-// Example of tracking a Uniswap-like DEX swap on any EVM chain
-let router = address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D");
-let result = trace_tx_assets(
-  &mut evm,
-  user_address,
-  router,
-  native_token_amount,
-  swap_data,
-  "BNB"  // Use appropriate native token symbol
-).await;
-// Process transfers and logs
-for transfer in result.asset_transfers() {
-  println!("Transfer: {:?}", transfer);
-}
-for log in result.logs {
-  if log.topics()[0] == SWAP_EVENT_SIGNATURE {
-    println!("Swap event: {:?}", log);
-  }
-}
-```
-
-
-
-### Reusing EVM Instance
-
-When simulating multiple transactions using the same EVM instance, you need to reset the inspector state between simulations:
-
-```rust
-use revm_trace::{
-  trace_tx_assets,
-  create_evm_instance_with_tracer,
-  GetTransactionTracer,
-  Reset,
+let batch = SimulationBatch {
+  block_env: BlockEnv {
+    number: 18000000,
+    timestamp: 1700000000,
+  },
+  is_multicall: true, // Simulate as atomic multicall
+  transactions: vec![approve_tx, swap_tx, transfer_tx],
 };
-async fn simulate_multiple_txs() -> anyhow::Result<()> {
-  let mut evm = create_evm_instance_with_tracer(
-    "https://rpc.ankr.com/eth",
-    Some(1)
-  )?;
-  // First simulation
-  let result1 = trace_tx_assets(&mut evm, from, to1, value1, data1, "ETH").await;
-  // Reset inspector state before next simulation
-  evm.reset_inspector();
-  // Second simulation with clean state
-  let result2 = trace_tx_assets(&mut evm, from, to2, value2, data2, "ETH").await;
-  Ok(())
-}
-
-```
-
-### Setting Block Environment
-
-You can customize the block environment for simulation:
-
-```rust
-use revm_trace::{
-  trace_tx_assets,
-  create_evm_instance_with_tracer,
-  BlockEnvConfig,
-};
-async fn simulate_at_specific_block() -> anyhow::Result<()> {
-  let mut evm = create_evm_instance_with_tracer(
-    "https://rpc.ankr.com/eth",
-    Some(1)
-  )?;
-  // Set specific block number and timestamp
-  evm.set_block_number(17_000_000)
-  	.set_block_timestamp(1677777777);
-  // Or set both at once
-  evm.set_block_env(17_000_000, 1677777777);
-  let result = trace_tx_assets(&mut evm, from, to, value, data, "ETH").await;
-  Ok(())
-}
+let results = evm.trace_txs(batch)?;
+// Analyze combined effects of all transactions
 ```
 
 
 
+## More Examples
+
+For more detailed examples and use cases, please check:
+
+- [Example Directory](./examples/): Contains standalone examples demonstrating specific features
+  - DeFi interaction simulations
+  - Token transfer analysis
+  - Complex contract interactions
+  - Proxy contract handling
+
+- [Integration Tests](./tests/trace_tests.rs): Comprehensive test cases showing various usage scenarios
+  - Transaction batching
+  - Error handling
+  - State tracking
+  - Event analysis
+
+These examples cover common use cases and demonstrate best practices for using the library.
+
+For a quick overview, here are some key examples:
+
+1. [Simulating DeFi Swaps](./examples/defi_swap.rs)
+2. [Analyzing Token Transfers](./examples/token_transfer.rs)
+3. [Handling Complex Contract Interactions](./examples/contract_interaction.rs)
+4. [Working with Proxy Contracts](./examples/proxy_contracts.rs)
 
 
-### Thread Safety and Parallel Processing
 
-#### Important Note on Thread Safety
+## Important Notes
 
-The core `Evm` instance from REVM is not thread-safe, and consequently, our tracing functionality cannot be used across threads. This means you cannot share an `Evm` instance between threads or use it in parallel operations.
+### Safe Simulation Environment
 
-#### Recommended Usage Patterns
+All simulations run in an isolated environment:
+- No actual blockchain state is modified
+- No real transactions are submitted
+- No gas fees are spent
+- Perfect for testing and validation
 
-##### ❌ What to Avoid
+### Thread Safety and Concurrency
+
+The EVM instance is not thread-safe and cannot be shared between threads. Here's how to handle concurrent operations:
+
+##### ❌ What NOT to do
 
 ```rust
-// This will NOT work - do not share Evm across threads
-let mut evm = create_evm_instance_with_tracer("https://rpc...", Some(1))?;
-let handles: Vec<> = transactions
-	.into_par_iter() // ❌ Parallel processing will fail
-	.map(|tx| {
-		trace_tx_assets(&mut evm, tx.from, tx.to, tx.value, tx.data, "ETH")
-	})
-	.collect();
+// DON'T share a single EVM instance across threads
+let mut evm = create_evm("https://rpc...", Some(1), None)?;
+let results: Vec<> = transactions
+  .par_iter() // ❌ This will fail - EVM instance is not thread-safe
+  .map(|tx| {
+    evm.trace_tx(tx.clone(), block_env.clone()) // Sharing EVM across threads
+  })
+  .collect();
 ```
 
 ##### ✅ Correct Usage
 
-```rust
-// Create separate EVM instances for each thread
-let handles: Vec<> = transactions
-  .into_iter() // ✅ Sequential processing
-  .map(|tx| {
-  	let mut evm = create_evm_instance_with_tracer("https://rpc...", Some(1))?;
-  	trace_tx_assets(&mut evm, tx.from, tx.to, tx.value, tx.data, "ETH")
-  })
-  .collect();
+1. **Sequential Processing**
 
-// Alternative: If you need parallel processing
-	use rayon::prelude::;
-  let results: Vec<> = transactions
+```rust
+// Process transactions sequentially with a single EVM instance
+let mut evm = create_evm("https://rpc...", Some(1), None)?;
+let results: Vec<> = transactions
+  .iter()
+  .map(|tx| evm.trace_tx(tx.clone(), block_env.clone()))
+  .collect();
+```
+
+2. **Parallel Processing with Multiple Instances**
+
+```rust
+use rayon::prelude::;
+// Create new EVM instance for each thread
+let results: Vec<> = transactions
   .par_iter()
   .map(|tx| {
-    let mut evm = create_evm_instance_with_tracer("https://rpc...", Some(1))?;
-    trace_tx_assets(&mut evm, tx.from, tx.to, tx.value, tx.data, "ETH")
+    // Each thread gets its own EVM instance
+    let mut evm = create_evm("https://rpc...", Some(1), None)?;
+    evm.trace_tx(tx.clone(), block_env.clone())
   })
   .collect();
 ```
 
+
+
 #### Performance Considerations
 
-- Create new EVM instances for parallel operations
+- **RPC Limitations**: 
 
-- Consider connection pool limits of your RPC provider
+  - Each EVM instance maintains its own RPC connection
+  - Consider your RPC provider's connection and rate limits
+  - Too many parallel instances might exceed provider limits
 
-- Balance between parallelism and RPC rate limits
+- **Resource Usage**:
+  - Each EVM instance requires its own memory
+  - Balance parallelism with resource constraints
+  - Monitor system memory usage when scaling
 
+- **Optimal Approach**:
+  - For small batches: Use sequential processing
   
+  - For large batches: Use parallel processing with connection pooling
+  
+  - Consider implementing a worker pool pattern for better resource management
+  
+    
 
 ### Working with Proxy Contracts
 
@@ -235,12 +264,10 @@ The library automatically handles proxy contracts by resolving their implementat
 
 ## Historical State Access
 
-When accessing historical blockchain state, capabilities depend on the node type:
-
-- **Archive Nodes**: Can access any historical block state
-- **Full Nodes**: Limited to recent blocks (typically ~128 blocks)
-
-The actual accessible block range varies by provider and node configuration.
+Simulations can be run against different historical states:
+- Recent blocks: Available on all nodes
+- Historical blocks: Requires archive node access
+- Future blocks: Uses latest state as base
 
 ## Contributing
 

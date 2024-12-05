@@ -11,17 +11,28 @@ keywords = ["ethereum", "evm", "simulation", "defi", "blockchain"]
 categories = ["cryptography::cryptocurrencies", "development-tools", "simulation"]
 license = "MIT OR Apache-2.0"
 
+[features]
+ws = [
+    "alloy/provider-ws",
+    "dep:tokio"
+]
+full = ["ws"]
+
 [dependencies]
 anyhow = "1.0.86"
-tokio = { version = "1.38.0", features = ["sync", "rt-multi-thread"] }
-revm = { version = "18.0.0", features = ["serde-json", "alloydb", "dev"] }
+tokio = { version = "1.38.0", features = ["sync", "rt-multi-thread"],optional = true }
+revm = { version = "18.0.0", features = ["serde-json", "alloydb", "dev","serde"] }
 alloy = { version = "0.5.2", features = [
     "full",
     "provider-debug-api",
-    "provider-trace-api"
+    "provider-trace-api",
+    "provider-ws"
 ] }
 once_cell = "1.19"
 serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+openssl = { version = "0.10", features = ["vendored"] }
+
 
 [package.metadata.docs.rs]
 all-features = true

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2024-12-02
+
+### Changed
+- Completely refactored EVM initialization and interaction
+  - Simplified EVM instance creation with `create_evm`
+  - Improved transaction simulation interface
+  - Enhanced error handling and status reporting
+  - Better support for proxy contracts (EIP-1967, UUPS)
+  - More efficient token transfer tracking
+  - Thread-safe design for concurrent simulations
+
+### Added
+- New `TransactionStatus` enum for comprehensive execution status reporting
+  - `Success`: Transaction succeeded completely
+  - `PartialSuccess`: Transaction succeeded but with internal errors
+  - `Failed`: Transaction failed with detailed error information
+- Added support for historical state access
+- Improved multicall transaction support
+- Enhanced asset transfer tracking for both native and ERC20 tokens
+
+### Features
+- Added `ws` feature for WebSocket RPC support
+
 ## [1.0.0] - 2024-11-29
 
 ### Added

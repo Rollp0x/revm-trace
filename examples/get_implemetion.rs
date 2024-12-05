@@ -1,12 +1,12 @@
 use alloy::primitives::address;
 use anyhow::Result;
-use revm_trace::{create_evm_instance, utils::proxy_utils::get_implement};
+use revm_trace::{create_evm, utils::proxy_utils::get_implement};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Starting proxy implementation test...");
 
-    let mut evm = create_evm_instance("https://rpc.ankr.com/eth",Some(1))?;
+    let mut evm = create_evm("https://rpc.ankr.com/eth",Some(1),None)?;
     println!("✅ EVM instance created successfully");
 
     // USDC proxy contract address

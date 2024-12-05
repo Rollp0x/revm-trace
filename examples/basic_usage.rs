@@ -1,11 +1,12 @@
 use alloy::{
-    primitives::{address, Address, U256},
-    sol,
-    sol_types::SolCall,
+    eips::BlockNumberOrTag, 
+    primitives::{address, Address, U256,utils::format_units}, 
+    providers::{Provider, ProviderBuilder}, 
+    sol, sol_types::SolCall
 };
 use anyhow::Result;
-use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets};
-
+use revm_trace::{create_evm,Tracer,SimulationTx,types::TxKind,BlockEnv};
+// use revm_trace::types::*;
 sol!(
     contract ERC20 {
         function transfer(address to, uint256 amount) external returns (bool);
@@ -20,13 +21,26 @@ sol!(
 ///
 /// # Returns
 /// The encoded function call as bytes
-pub fn encode_erc20_transfer(to: Address, amount: U256) -> Vec<u8> {
+fn encode_erc20_transfer(to: Address, amount: U256) -> Vec<u8> {
     ERC20::transferCall { to, amount }.abi_encode()
+}
+
+async fn get_block_env(http_url: &str,block_number:Option<u64>) -> BlockEnv {
+    let provider = ProviderBuilder::new()
+        .on_http(http_url.parse().unwrap());
+    if let Some(block_number) = block_number {
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number),false).await.unwrap().unwrap();
+        return BlockEnv { number: block_number, timestamp: block_info.header.timestamp };
+    } else {
+        let latest_block = provider.get_block_number().await.unwrap();
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block),false).await.unwrap().unwrap();
+        return BlockEnv { number: latest_block, timestamp: block_info.header.timestamp };
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut evm = create_evm_instance_with_tracer("https://rpc.ankr.com/eth", None)?;
+    let mut evm = create_evm("https://rpc.ankr.com/eth",Some(1),None)?;
 
     // USDC proxy contract address
     let usdc = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
@@ -36,26 +50,29 @@ async fn main() -> Result<()> {
         address!("34e5dacdc16ff5bcdbdfa66c21a20f46347d86cf "),
         U256::from(1000000), // 1 USDC (6 decimals)
     );
+    let tx = SimulationTx {
+        caller: address!("28C6c06298d514Db089934071355E5743bf21d60"),
+        transact_to: TxKind::Call(usdc),
+        value: U256::ZERO,
+        data: transfer_data.into(),
+    };
+    let block_env = get_block_env("https://rpc.ankr.com/eth",None).await;
 
-    let result = trace_tx_assets(
-        &mut evm,
-        address!("28C6c06298d514Db089934071355E5743bf21d60"),
-        usdc,
-        U256::ZERO,
-        transfer_data,
-        "ETH",
-    )
-    .await;
+    let result = evm.trace_tx(
+        tx,
+        block_env
+    )?;
+    println!("{:#?}",result);
     
     // Print results
-    for transfer in result.asset_transfers() {
+    for transfer in result.asset_transfers {
         let token_info = result
-            .token_info
+            .token_infos
             .get(&transfer.token)
             .expect("Token info should exist");
         println!(
             "Transfer: {} {} -> {}: {}",
-            token_info.symbol, transfer.from, transfer.to, transfer.value
+            token_info.symbol, transfer.from, transfer.to, format_units(transfer.value, token_info.decimals).unwrap()
         );
     }
 

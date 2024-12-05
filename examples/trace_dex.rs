@@ -12,14 +12,12 @@
 //! - Using an archive node
 
 use alloy::{
-    primitives::{address, U256},
-    sol,
-    sol_types::SolCall,
+    eips::BlockNumberOrTag, primitives::{address, U256}, providers::{Provider, ProviderBuilder}, sol, sol_types::SolCall
 };
 use anyhow::Result;
 use colored::*;
 use prettytable::{format, Cell, Row, Table};
-use revm_trace::{create_evm_instance_with_tracer, trace_tx_assets};
+use revm_trace::{create_evm,Tracer,SimulationTx,types::TxKind,BlockEnv};
 
 // Uniswap V2 Router interface for ETH -> Token swaps
 sol! {
@@ -64,10 +62,23 @@ fn format_amount(amount: U256, decimals: u8) -> String {
         .to_string()
 }
 
+async fn get_block_env(http_url: &str,block_number:Option<u64>) -> BlockEnv {
+    let provider = ProviderBuilder::new()
+        .on_http(http_url.parse().unwrap());
+    if let Some(block_number) = block_number {
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number),false).await.unwrap().unwrap();
+        return BlockEnv { number: block_number, timestamp: block_info.header.timestamp };
+    } else {
+        let latest_block = provider.get_block_number().await.unwrap();
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block),false).await.unwrap().unwrap();
+        return BlockEnv { number: latest_block, timestamp: block_info.header.timestamp };
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize EVM with transaction tracer
-    let mut evm = create_evm_instance_with_tracer("https://rpc.ankr.com/eth", None)?;
+    let mut evm = create_evm("https://rpc.ankr.com/eth",Some(1),None)?;
 
     println!("{}", "✅ EVM instance created successfully\n".green());
 
@@ -94,12 +105,25 @@ async fn main() -> Result<()> {
     .abi_encode();
 
     println!("Executing swap of {} ETH...\n", "0.1".bold());
+    let tx = SimulationTx{
+        caller,
+        transact_to: TxKind::Call(router),
+        value: swap_amount,
+        data: data.into(),
+    };
+    let block_env = get_block_env("https://rpc.ankr.com/eth",None).await;
 
-    let result = trace_tx_assets(&mut evm, caller, router, swap_amount, data.into(), "ETH").await;
+    let result = evm.trace_tx(tx, block_env).unwrap();
 
     println!("\nTransaction Result:");
     println!("-----------------");
-    println!("Error: {:#?}", result.error);
+    println!("Status: {:#?}", result.status);
+
+    // Verify results
+    assert!(
+        result.asset_transfers.len() > 2,
+        "❌ Expected at least 2 transfers"
+    );
 
     // Create results table
     let mut table = Table::new();
@@ -112,8 +136,8 @@ async fn main() -> Result<()> {
     ]));
 
     // Add transfers to table
-    for transfer in result.asset_transfers() {
-        let token_info = result.token_info.get(&transfer.token);
+    for transfer in result.asset_transfers {
+        let token_info = result.token_infos.get(&transfer.token);
         let amount = if let Some(info) = token_info {
             format_amount(transfer.value, info.decimals)
         } else {
@@ -136,15 +160,6 @@ async fn main() -> Result<()> {
     println!("------------");
     table.printstd();
 
-    // Verify results
-    assert!(
-        result.asset_transfers().len() > 2,
-        "❌ Expected at least 2 transfers"
-    );
-
-    let usdc_info = result.token_info.get(&usdc).expect("Should have USDC info");
-    assert_eq!(usdc_info.symbol, "USDC", "❌ Invalid USDC symbol");
-    assert_eq!(usdc_info.decimals, 6, "❌ Invalid USDC decimals");
 
     println!(
         "\n{}",
