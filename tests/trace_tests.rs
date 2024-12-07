@@ -177,7 +177,7 @@ async fn test_nested_revert_with_try_catch() {
     // execute all transactions
     let results = evm.trace_txs(SimulationBatch {
         block_env,
-        is_multicall: true,
+        is_bound_multicall: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).unwrap();
 
@@ -298,7 +298,7 @@ async fn test_nested_revert_with_multicall() {
     // execute all transactions
     let results = evm.trace_txs(SimulationBatch {
         block_env,
-        is_multicall: true,
+        is_bound_multicall: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).unwrap();
 
@@ -397,7 +397,7 @@ async fn test_nested_revert_without_multicall() {
     // execute all transactions
     let results = evm.trace_txs(SimulationBatch {
         block_env,
-        is_multicall: false,
+        is_bound_multicall: false,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).unwrap();
 
@@ -498,7 +498,7 @@ async fn test_multicall_with_error() {
     // execute batch transactions
     let results = evm.trace_txs(SimulationBatch {
         block_env,
-        is_multicall: true,
+        is_bound_multicall: true,
         transactions: vec![tx0, tx1, tx2],
     }).unwrap();
 
@@ -563,7 +563,7 @@ async fn test_create_contract() {
     };
     let results = evm.trace_txs(SimulationBatch {
         block_env,
-        is_multicall: false,
+        is_bound_multicall: false,
         transactions: vec![tx0],
     }).unwrap();
     assert_eq!(results.len(), 1, "Should have results for one transaction");
@@ -624,7 +624,7 @@ async fn test_set_owner_and_fail() {
     };
     let results = evm.trace_txs(SimulationBatch {
         block_env,
-        is_multicall: false,
+        is_bound_multicall: false,
         transactions: vec![tx0,tx1,tx2],
     }).unwrap();
     assert_eq!(results.len(), 3, "Should have results for two transactions");
@@ -682,7 +682,7 @@ async fn test_state_changes_between_txs() {
 
     let txs = SimulationBatch {
         block_env,
-        is_multicall: false,
+        is_bound_multicall: false,
         transactions: vec![
             SimulationTx {
                 caller: SENDER,
@@ -705,14 +705,14 @@ async fn test_state_changes_between_txs() {
     // verify first transfer
     let transfer1 = &results[0].asset_transfers[0];
     assert_eq!(transfer1.from, SENDER);
-    assert_eq!(transfer1.to, CAFE_ADDRESS);
+    assert_eq!(transfer1.to, Some(CAFE_ADDRESS));
     assert_eq!(transfer1.value, transfer1_amount);
     assert!(transfer1.is_native_token());
     
     // verify second transfer
     let transfer2 = &results[1].asset_transfers[0];
     assert_eq!(transfer2.from, CAFE_ADDRESS);
-    assert_eq!(transfer2.to, DEAD_ADDRESS);
+    assert_eq!(transfer2.to, Some(DEAD_ADDRESS));
     assert_eq!(transfer2.value, transfer2_amount);
     assert!(transfer2.is_native_token());
 
@@ -756,7 +756,7 @@ async fn test_state_changes_between_txs_with_ws() {
 
     let txs = SimulationBatch {
         block_env,
-        is_multicall: false,
+        is_bound_multicall: false,
         transactions: vec![
             SimulationTx {
                 caller: SENDER,
@@ -779,14 +779,14 @@ async fn test_state_changes_between_txs_with_ws() {
     // verify first transfer
     let transfer1 = &results[0].asset_transfers[0];
     assert_eq!(transfer1.from, SENDER);
-    assert_eq!(transfer1.to, CAFE_ADDRESS);
+    assert_eq!(transfer1.to, Some(CAFE_ADDRESS));
     assert_eq!(transfer1.value, transfer1_amount);
     assert!(transfer1.is_native_token());
     
     // verify second transfer
     let transfer2 = &results[1].asset_transfers[0];
     assert_eq!(transfer2.from, CAFE_ADDRESS);
-    assert_eq!(transfer2.to, DEAD_ADDRESS);
+    assert_eq!(transfer2.to, Some(DEAD_ADDRESS));
     assert_eq!(transfer2.value, transfer2_amount);
     assert!(transfer2.is_native_token());
 

@@ -70,8 +70,8 @@ pub struct SimulationBatch {
     pub block_env: BlockEnv,
     /// List of transactions to execute
     pub transactions: Vec<SimulationTx>,
-    /// Whether transactions should be executed as multicall
-    pub is_multicall: bool,
+    /// Whether transactions should be executed as bound multicall
+    pub is_bound_multicall: bool,
 }
 
 /// Record of a token transfer event
@@ -82,7 +82,7 @@ pub struct TokenTransfer {
     /// Sender address
     pub from: Address,
     /// Recipient address
-    pub to: Address,
+    pub to: Option<Address>, //  May be None if ETH was transferred during contract creation but the creation failed
     /// Transfer amount
     pub value: U256,
 }
@@ -191,8 +191,6 @@ pub enum FailureKind {
 /// Complete result of a transaction simulation
 #[derive(Debug, Clone,Serialize)]
 pub struct TraceResult {
-    /// Block environment used
-    pub block_env: BlockEnv,
     /// All asset transfers during execution
     pub asset_transfers: Vec<TokenTransfer>,
     /// Token metadata collected

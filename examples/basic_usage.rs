@@ -5,8 +5,7 @@ use alloy::{
     sol, sol_types::SolCall
 };
 use anyhow::Result;
-use revm_trace::{create_evm,Tracer,SimulationTx,types::TxKind,BlockEnv};
-// use revm_trace::types::*;
+use revm_trace::{create_evm,Tracer,SimulationTx,types::TxKind,BlockEnv,SimulationBatch};
 sol!(
     contract ERC20 {
         function transfer(address to, uint256 amount) external returns (bool);
@@ -58,10 +57,11 @@ async fn main() -> Result<()> {
     };
     let block_env = get_block_env("https://rpc.ankr.com/eth",None).await;
 
-    let result = evm.trace_tx(
-        tx,
-        block_env
-    )?;
+    let result = evm.trace_txs(SimulationBatch {
+        block_env,
+        transactions: vec![tx],
+        is_bound_multicall: false,
+    }).unwrap()[0].clone();
     println!("{:#?}",result);
     
     // Print results
@@ -72,7 +72,7 @@ async fn main() -> Result<()> {
             .expect("Token info should exist");
         println!(
             "Transfer: {} {} -> {}: {}",
-            token_info.symbol, transfer.from, transfer.to, format_units(transfer.value, token_info.decimals).unwrap()
+            token_info.symbol, transfer.from, transfer.to.unwrap(), format_units(transfer.value, token_info.decimals).unwrap()
         );
     }
 

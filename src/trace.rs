@@ -33,16 +33,6 @@ pub trait Tracer {
     /// # Returns
     /// * Vector of trace results for each transaction
     fn trace_txs(&mut self, batch: SimulationBatch) -> Result<Vec<TraceResult>>;
-
-    /// Execute a single transaction with the current EVM state
-    ///
-    /// # Arguments
-    /// * `input` - Transaction input parameters
-    /// * `block_env` - Block environment for the simulation
-    ///
-    /// # Returns
-    /// * Trace result containing execution details
-    fn trace_tx(&mut self, input: SimulationTx, block_env: BlockEnv) -> Result<TraceResult>;
 }
 
 impl<'a, T, P> TraceEvm<'a, T, P>
@@ -55,15 +45,12 @@ where
     /// # Arguments
     /// * `input` - Transaction parameters
     /// * `block_env` - Block environment
-    /// * `initial_index` - Index for multicall sub-transactions (None for top-level calls)
     ///
     /// # Returns
     /// * Trace result containing execution details and collected data
     fn trace_tx_inner(
         &mut self,
         input: SimulationTx,
-        block_env: &BlockEnv,
-        initial_index: Option<usize>
     ) -> Result<TraceResult> {
         // Set transaction parameters
         let tx = self.tx_mut();
@@ -76,7 +63,6 @@ where
         let execution_result = match self.transact_commit() {
             Err(evm_error) => {
                 return Ok(TraceResult {
-                    block_env: block_env.clone(),
                     asset_transfers: vec![],
                     token_infos: HashMap::new(),
                     call_traces: vec![],
@@ -94,21 +80,7 @@ where
         // Collect execution data
         let transfers = self.get_token_transfers().unwrap_or_default();
         let logs = self.get_logs().unwrap_or_default();
-        let mut traces = self.get_call_traces().unwrap_or_default();
-
-        // Update trace addresses for multicall sub-transactions
-        if let Some(index) = initial_index {
-            for trace in &mut traces {
-                trace.trace_address.insert(0, index);
-                fn update_subtrace_address(trace: &mut CallTrace, index: usize) {
-                    for subtrace in &mut trace.subtraces {
-                        subtrace.trace_address.insert(0, index);
-                        update_subtrace_address(subtrace, index);
-                    }
-                }
-                update_subtrace_address(trace, index);
-            }
-        }
+        let traces = self.get_call_traces().unwrap_or_default();
 
         // Build final execution status
         let status = self.build_execution_status(execution_result);
@@ -117,7 +89,6 @@ where
         self.reset_inspector();
         let token_infos = self.collect_token_info(&transfers)?;
         Ok(TraceResult {
-            block_env: block_env.clone(),
             asset_transfers: transfers,
             token_infos,
             call_traces: traces,
@@ -207,80 +178,32 @@ where
     P: Provider<T>,
 {
     fn trace_txs(&mut self, batch: SimulationBatch) -> Result<Vec<TraceResult>> {
-        let SimulationBatch { block_env, transactions, is_multicall } = batch;
-        self.reset_db().set_block_env(block_env.clone());
-
-        if !is_multicall {
-            // Handle independent transactions
-            let mut results = Vec::with_capacity(transactions.len());
-            for tx in transactions {
-                self.reset_inspector();
-                let result = self.trace_tx_inner(tx, &block_env, None)?;
-                results.push(result);
-            }
-            return Ok(results);
-        }
-
-        // Handle multicall scenario
-        let mut combined_transfers = Vec::new();
-        let mut combined_token_infos = HashMap::new();
-        let mut combined_traces = Vec::new();
-        let mut combined_logs = Vec::new();
-        let mut sum_gas_used = 0;
-        let mut sum_gas_refunded = 0;
-
-        for (index, tx) in transactions.into_iter().enumerate() {
-            self.reset_inspector();
-            let result = self.trace_tx_inner(tx, &block_env, Some(index))?;
-            let is_success = result.is_success();
-            let output_bytes = result.get_output_bytes();
-            let status = result.status.clone();
-
-            // Combine results
-            sum_gas_used += result.get_gas_used();
-            sum_gas_refunded += result.get_gas_refunded();
-            combined_transfers.extend(result.asset_transfers);
-            combined_token_infos.extend(result.token_infos);
-            combined_traces.extend(result.call_traces);
-            combined_logs.extend(result.logs);
-
-            // Stop execution on first error in multicall
-            if !is_success {
-                return Ok(vec![TraceResult {
-                    block_env: block_env.clone(),
-                    asset_transfers: combined_transfers,
-                    token_infos: combined_token_infos,
-                    call_traces: combined_traces,
-                    logs: combined_logs,
-                    status: ExecutionStatus::Failed {
-                        kind: match status {
-                            ExecutionStatus::Failed { kind, .. } => kind,
-                            _ => unreachable!(),
-                        },
-                        gas_used: sum_gas_used,
-                        output: output_bytes,
-                    },
-                }]);
-            }
-        }
-
-        Ok(vec![TraceResult {
-            block_env,
-            asset_transfers: combined_transfers,
-            token_infos: combined_token_infos,
-            call_traces: combined_traces,
-            logs: combined_logs,
-            status: ExecutionStatus::Success {
-                gas_used: sum_gas_used,
-                gas_refunded: sum_gas_refunded,
-                output: Output::Call(Bytes::new()),
-            },
-        }])
-    }
-
-    fn trace_tx(&mut self, input: SimulationTx, block_env: BlockEnv) -> Result<TraceResult> {
+        let SimulationBatch { block_env, transactions, is_bound_multicall } = batch;
+        // Prepare EVM for execution
         self.prepare_tx(&block_env);
-        self.trace_tx_inner(input, &block_env, None)
+        let mut results = Vec::with_capacity(transactions.len());
+        
+        for tx in transactions {
+            // Execute transaction and collect result
+            let result = self.trace_tx_inner(tx)?;
+            
+            // For bound multicall, stop execution if a transaction fails
+            if is_bound_multicall && !result.is_success() {
+                results.push(result);
+                self.reset_db().reset_inspector();
+                break;
+            }
+            
+            results.push(result);
+            // Reset EVM inspector for each transaction
+            self.reset_inspector();
+            // Reset EVM database for independent transactions
+            if !is_bound_multicall {
+                self.reset_db();
+            }
+        }
+
+        Ok(results)
     }
 }
 

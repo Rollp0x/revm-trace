@@ -47,6 +47,8 @@ pub struct TxInspector {
     call_stack: Vec<usize>,
     /// Stack of addresses to track the actual caller
     address_stack: Vec<Address>,
+    /// Pending contract creation transfer that needs to be updated with the actual address
+    pending_create_transfer: Option<(usize, TokenTransfer)>, // (index, transfer)
 }
 
 impl TxInspector {
@@ -100,7 +102,7 @@ impl TxInspector {
                     if let Some(error_msg) = parse_custom_error(&output) {
                         CallStatus::Revert(error_msg)
                     } else {
-                        CallStatus::Revert(format!("Reverted: 0x{}", hex::encode(output)))
+                        CallStatus::Revert(format!("0x{}", hex::encode(output)))
                     }
                 },
                 SuccessOrHalt::Halt(reason) => CallStatus::Halt(format!("{:?}", reason)),
@@ -177,8 +179,8 @@ impl<DB: Database> Inspector<DB> for TxInspector {
             if value > U256::ZERO && (inputs.scheme == CallScheme::Call || inputs.scheme == CallScheme::CallCode) {
                 self.transfers.push(TokenTransfer {
                     token: NATIVE_TOKEN_ADDRESS,
-                    from,
-                    to,
+                    from: inputs.transfer_from(),
+                    to: Some(inputs.transfer_to()),
                     value,
                 });
             }
@@ -218,12 +220,20 @@ impl<DB: Database> Inspector<DB> for TxInspector {
         _context: &mut EvmContext<DB>,
         inputs: &mut CreateInputs,
     ) -> Option<CreateOutcome> {
-        // Determine the correct 'from' address based on the call stack
-        // 使用实际的 caller
         let from = inputs.caller;
-        // Push the creator's address onto the stack
         self.address_stack.push(from);
-        
+
+        // Record ETH transfer for contract creation
+        if inputs.value > U256::ZERO {
+            let transfer = TokenTransfer {
+                token: NATIVE_TOKEN_ADDRESS,
+                from,
+                to:None,  // Will be updated in create_end
+                value: inputs.value,
+            };
+            self.transfers.push(transfer.clone());
+            self.pending_create_transfer = Some((self.transfers.len() - 1, transfer));
+        }
 
         // Create new trace entry
         let mut trace_address = Vec::new();
@@ -278,8 +288,15 @@ impl<DB: Database> Inspector<DB> for TxInspector {
         outcome: CreateOutcome,
     ) -> CreateOutcome {
         if let Some(address) = outcome.address {
+            // Update the trace
             if let Some(trace_index) = self.call_stack.last() {
                 self.traces[*trace_index].to = address;
+            }
+            
+            // Update the transfer
+            if let Some((transfer_index, mut transfer)) = self.pending_create_transfer.take() {
+                transfer.to = Some(address);
+                self.transfers[transfer_index] = transfer;
             }
         }
         self.handle_end(outcome.result.result, outcome.result.gas.spent(), outcome.result.output.clone());
@@ -299,7 +316,7 @@ impl<DB: Database> Inspector<DB> for TxInspector {
             self.transfers.push(TokenTransfer {
                 token: log.address,
                 from,
-                to,
+                to: Some(to),
                 value: amount,
             });
         }
@@ -313,7 +330,7 @@ impl<DB: Database> Inspector<DB> for TxInspector {
             self.transfers.push(TokenTransfer {
                 token: NATIVE_TOKEN_ADDRESS,
                 from: contract,      // Address of the self-destructed contract
-                to: target,          // Address receiving the balance
+                to: Some(target),          // Address receiving the balance
                 value,              // Remaining contract balance
             });
         }
