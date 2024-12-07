@@ -79,6 +79,7 @@ impl TxInspector {
         self.transfers = Vec::new();
         self.logs = Vec::new();
         self.address_stack = Vec::new(); // 重置 address_stack
+        self.pending_create_transfer = None;
     }
 
     /// Handles the end of a call or create operation
