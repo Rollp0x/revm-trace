@@ -1,12 +1,10 @@
 
 use alloy::{
-    providers::{Provider, ProviderBuilder},
-    eips::BlockNumberOrTag,
-    primitives::{address, U256}
+    eips::BlockNumberOrTag, primitives::{address, U256}, providers::{Provider, ProviderBuilder}
 };
 use anyhow::Result;
 use colored::*;
-use revm_trace::{create_evm ,SimulationTx,Tracer,types::TxKind,BlockEnv};
+use revm_trace::{create_evm ,SimulationTx,Tracer,types::TxKind,BlockEnv,SimulationBatch};
 
 async fn get_block_env(http_url: &str,block_number:Option<u64>) -> BlockEnv {
     let provider = ProviderBuilder::new()
@@ -36,7 +34,12 @@ async fn main() -> Result<()> {
         value: amount,
         data: vec![].into(),
     };
-    let result = evm.trace_tx(tx, block_env).unwrap();
+    let txs = SimulationBatch {
+        block_env,
+        transactions: vec![tx],
+        is_bound_multicall: false,
+    };
+    let result = evm.trace_txs(txs).unwrap()[0].clone();
     assert!(!result.is_success(),"❌ Expected transfer to fail");
     assert!(result.asset_transfers.is_empty(),"❌ Expected no transfers");
     println!("{}",format!("Status:❌ {:#?}", result.status).red());

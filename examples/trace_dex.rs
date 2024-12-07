@@ -17,7 +17,7 @@ use alloy::{
 use anyhow::Result;
 use colored::*;
 use prettytable::{format, Cell, Row, Table};
-use revm_trace::{create_evm,Tracer,SimulationTx,types::TxKind,BlockEnv};
+use revm_trace::{create_evm,Tracer,SimulationTx,types::TxKind,BlockEnv,SimulationBatch};
 
 // Uniswap V2 Router interface for ETH -> Token swaps
 sol! {
@@ -113,7 +113,11 @@ async fn main() -> Result<()> {
     };
     let block_env = get_block_env("https://rpc.ankr.com/eth",None).await;
 
-    let result = evm.trace_tx(tx, block_env).unwrap();
+    let result = evm.trace_txs(SimulationBatch {
+        block_env,
+        transactions: vec![tx],
+        is_bound_multicall: false,
+    }).unwrap()[0].clone();
 
     println!("\nTransaction Result:");
     println!("-----------------");
@@ -151,7 +155,7 @@ async fn main() -> Result<()> {
                     .unwrap_or_else(|| "ETH".to_string()),
             ),
             Cell::new(&format!("{:.8}...", transfer.from)),
-            Cell::new(&format!("{:.8}...", transfer.to)),
+            Cell::new(&format!("{:.8}...", transfer.to.unwrap())),
             Cell::new(&amount),
         ]));
     }
