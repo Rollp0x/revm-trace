@@ -1,25 +1,46 @@
-use alloy::primitives::address;
+//! Proxy Implementation Contract Lookup Example
+//! 
+//! This example demonstrates how to:
+//! - Query the implementation address of a proxy contract
+//! - Use revm without transaction simulation
+//! - Work with proxy contracts like USDC
+//! 
+//! Note: This example doesn't use transaction simulation or inspectors,
+//! it only reads state from the blockchain.
+
+use revm_trace::{
+    utils::proxy_utils::get_implement,
+    create_evm,
+};
 use anyhow::Result;
-use revm_trace::{create_evm, utils::proxy_utils::get_implement};
+use alloy::primitives::address;
+mod common;
+use common::get_block_env;
+
+const ETH_RPC_URL: &str = "https://rpc.ankr.com/eth";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Starting proxy implementation test...");
 
-    let mut evm = create_evm("https://rpc.ankr.com/eth",Some(1),None)?;
+    // Create EVM instance without inspector since we're only reading state
+    let mut evm = create_evm(ETH_RPC_URL).await.unwrap();
+    let block_env = get_block_env(ETH_RPC_URL, None).await.ok();
     println!("✅ EVM instance created successfully");
 
-    // USDC proxy contract address
+    // USDC uses the proxy pattern - this is the proxy contract address
     let usdc_proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
     println!("📝 Testing USDC proxy contract at: {}", usdc_proxy);
 
-    let implementation_address = get_implement(&mut evm, usdc_proxy).await?;
-
+    // Query the implementation contract address
+    let implementation_address = get_implement(&mut evm, usdc_proxy, block_env).unwrap();
+    
     match implementation_address {
         Some(impl_addr) => {
             println!("✅ Implementation contract found at: {}", impl_addr);
             println!("🔍 Verifying against known implementation...");
 
+            // Known USDC implementation contract
             let expected_impl = address!("43506849D7C04F9138D1A2050bbF3A0c054402dd");
             assert_eq!(
                 impl_addr, expected_impl,

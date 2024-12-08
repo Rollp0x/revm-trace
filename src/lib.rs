@@ -19,29 +19,24 @@
 //!   - Complete call traces
 //!   - Event logs collection
 //!   - State change tracking
-//!   - Comprehensive status reporting
 //!   - Error propagation analysis
 //!
 //! ## Example Usage
 //!
 //! ```rust,no_run
 //! use revm_trace::{
-//!     create_evm,
-//!     BlockEnv,
-//!     SimulationTx,
-//!     SimulationBatch,
-//!     Tracer,
-//!     TransactionStatus,
+//!     evm::{create_evm_with_inspector},
+//!     types::{BlockEnv, SimulationTx, SimulationBatch},
+//!     inspectors::TxInspector,
 //! };
 //! use alloy::primitives::{address, U256, TxKind};
 //!
 //! # async fn example() -> anyhow::Result<()> {
-//! // Initialize EVM
-//! let mut evm = create_evm(
-//!     "https://rpc.ankr.com/eth",
-//!     Some(1),  // Ethereum mainnet
-//!     None,     // No custom configs
-//! )?;
+//! // Initialize EVM with transaction inspector
+//! let mut evm = create_evm_with_inspector(
+//!     "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
+//!     TxInspector::new(),
+//! ).await?;
 //!
 //! // Create simulation transaction
 //! let tx = SimulationTx {
@@ -51,33 +46,36 @@
 //!     data: vec![].into(),
 //! };
 //!
-//! // Execute transaction
-//! let result = evm.trace_tx(
-//!     tx,
-//!     BlockEnv {
+//! // Create batch with single transaction
+//! let batch = SimulationBatch {
+//!     block_env: BlockEnv {
 //!         number: 18000000,
 //!         timestamp: 1700000000,
 //!     },
-//! )?;
+//!     transactions: vec![tx],
+//!     is_stateful: false,
+//! };
+//!
+//! // Execute transaction batch
+//! let results = evm.process_transactions(batch)?;
 //!
 //! // Process results
-//! match result.execution_status() {
-//!     TransactionStatus::Success => {
-//!         println!("Transaction succeeded!");
-//!         for transfer in result.asset_transfers {
-//!             println!(
-//!                 "Transfer: {} from {} to {}",
-//!                 transfer.value, transfer.from, transfer.to
-//!             );
+//! for (execution_result, inspector_output) in results {
+//!     match execution_result.is_success {
+//!         true => {
+//!             println!("Transaction succeeded!");
+//!             for transfer in inspector_output.asset_transfers {
+//!                 println!(
+//!                     "Transfer: {} from {} to {}",
+//!                     transfer.value, transfer.from, transfer.to
+//!                 );
+//!             }
 //!         }
-//!     }
-//!     TransactionStatus::PartialSuccess => {
-//!         println!("Transaction succeeded with some internal errors");
-//!     }
-//!     TransactionStatus::Failed { error, origin_error } => {
-//!         println!("Transaction failed: {}", error);
-//!         if let Some(origin) = origin_error {
-//!             println!("Original error: {}", origin);
+//!         false => {
+//!             println!("Transaction failed!");
+//!             if let Some(error_trace) = inspector_output.error_trace_address {
+//!                 println!("Error occurred at call depth: {}", error_trace.len());
+//!             }
 //!         }
 //!     }
 //! }
@@ -87,29 +85,21 @@
 //!
 //! ## Module Structure
 //!
-//! - `evm`: EVM initialization and configuration
-//! - `trace`: Transaction tracing implementation
-//! - `inspector`: EVM execution inspector
-//! - `types`: Core data structures
-//! - `utils`: Helper functions
+//! - `evm`: Core EVM implementation with tracing capabilities
+//! - `inspectors`: EVM execution inspectors for different analysis needs
+//! - `types`: Core data structures and type definitions
+//! - `traits`: Trait definitions for extensibility
+//! - `errors`: Error types and handling
+//! - `utils`: Helper functions and utilities
 
 pub mod types;
 pub mod evm;
-pub mod trace;
 pub mod utils;
-mod inspector;
+pub mod traits;
+pub mod inspectors;
+pub mod errors;
 
-// Re-export only the essential types and functions
-pub use evm::{create_evm,TraceEvm};
-pub use trace::Tracer;
-pub use types::{
-    BlockEnv,
-    SimulationTx,
-    SimulationBatch,
-    TraceResult,
-    TokenTransfer,
-    TokenConfig,
-    ExecutionStatus,
-    FailureKind,
-    TransactionStatus
-};
+pub use evm::*;
+pub use inspectors::*;
+pub use traits::*;
+pub use types::*;
