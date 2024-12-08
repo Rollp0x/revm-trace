@@ -10,17 +10,15 @@
 //!   - Beacon Proxy
 
 use alloy::{
-    primitives::{Address, U256},
-    providers::Provider,
-    transports::Transport,
+    network::Ethereum, primitives::{Address, U256}, providers::Provider, transports::Transport
 };
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use revm::db::Database;
+use revm::{db::{AlloyDB, CacheDB, Database, WrapDatabaseRef}, Inspector};
 use std::str::FromStr;
-use crate::evm::TraceEvm;
-
-/// Storage slot for EIP-1967 implementation address
+use crate::{evm::TraceEvm, BlockEnv};
+use crate::errors::{EvmError,RuntimeError};
+/// Slot for EIP-1967 implementation address
 ///
 /// Calculated as: keccak256("eip1967.proxy.implementation") - 1
 const EIP_1967_LOGIC_SLOT: &str =
@@ -107,26 +105,36 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 /// - EIP-1822: Universal Upgradeable Proxy Standard (UUPS)
 /// - OpenZeppelin: Legacy proxy implementation
 /// - Beacon: Proxy pattern for multiple contracts sharing same implementation
-pub async fn get_implement<T, P>(
-    evm: &mut TraceEvm<'_, T, P>,
-    contract: Address,
-) -> Result<Option<Address>>
+pub fn get_implement<T, P,I>(
+    evm: &mut TraceEvm<'_, T, P,I>,
+    proxy: Address,
+    block_env: Option<BlockEnv>,
+) -> Result<Option<Address>, EvmError>
 where
     T: Transport + Clone,
     P: Provider<T>,
-{
+    I: Inspector<WrapDatabaseRef<CacheDB<AlloyDB<T, Ethereum, P>>>>,
+{   
+    if let Some(block_env) = block_env {
+        evm.set_block_env(block_env);
+    }
     // First verify if the contract exists
-    if evm.db_mut().basic(contract)?.is_none() {
+    if evm.db_mut().basic(proxy)
+        .map_err(|e| RuntimeError::AccountAccess(format!("Get contract {} state failed: {}",proxy,e.to_string())))?
+        .is_none()
+    {
         return Ok(None);
     }
     // Check each possible implementation slot
     for &slot in IMPLEMENTATION_SLOTS.iter() {
-        let value = evm.db_mut().storage(contract, slot)?;
+        let value = evm.db_mut().storage(proxy, slot)
+            .map_err(|e| RuntimeError::SlotAccess(format!("Get contract {} slot {} state failed: {}",proxy,slot,e.to_string())))?;
         if value != U256::ZERO {
             let impl_address = Address::from_slice(&value.to_be_bytes::<32>()[12..32]);
 
             // Only verify if the implementation account exists
-            if let Some(impl_acc) = evm.db_mut().basic(impl_address)? {
+            if let Some(impl_acc) = evm.db_mut().basic(impl_address)
+                .map_err(|e| RuntimeError::AccountAccess(format!("Get implementation {} state failed: {}",impl_address,e.to_string())))? {
                 // Check if account has code without loading it
                 if !impl_acc.code_hash.is_zero() {
                     return Ok(Some(impl_address));
