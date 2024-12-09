@@ -8,6 +8,7 @@
 //! - Display transfer information with proper token details
 
 use revm_trace::{
+    TransactionProcessor,
     types::TxKind,
     utils::erc20_utils::get_token_infos,
     create_evm_with_inspector, SimulationBatch, SimulationTx, TxInspector
@@ -66,7 +67,7 @@ async fn main() -> Result<()> {
         block_env,
         is_stateful: false,
         transactions: vec![tx],
-    }).unwrap()[0];
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0];
     let output = &result.0.output().unwrap();
     assert!(output.len() == 32 && output[31] == 1,"❌ Expected transfer to succeed");
     // Print results

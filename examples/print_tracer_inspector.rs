@@ -10,9 +10,10 @@
 //! showing depth, PC, gas, opcode, and stack information in a clear format.
 
 use revm_trace::{
-    Database,
+    TransactionProcessor,
+    traits::Database,
     types::TxKind,
-    CustomPrintTracer,
+    inspectors::CustomPrintTracer,
     create_evm_with_inspector, SimulationBatch, SimulationTx,
 };
 use anyhow::Result;
@@ -75,7 +76,7 @@ async fn main() -> Result<()> {
         block_env,
         is_stateful: true,
         transactions: vec![tx0,tx1],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     // Output the result of the second transaction
     let result = results[1].0.output().unwrap();

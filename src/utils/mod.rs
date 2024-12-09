@@ -1,14 +1,13 @@
 //! Utility functions for Ethereum smart contract analysis
 //!
 //! This module provides specialized utilities for analyzing and interacting with
-//! different types of Ethereum smart contracts:
+//! different types of Ethereum smart contracts.
 //!
 //! # Modules
 //!
 //! - [`erc20_utils`]: ERC20 token interaction utilities
-//!   - Token balance queries
 //!   - Metadata retrieval (symbol, decimals)
-//!   - Standard ERC20 function calls
+//!   - Parsing ERC20 Transfer events
 //!
 //! - [`proxy_utils`]: Proxy contract analysis
 //!   - Implementation contract resolution
@@ -23,17 +22,27 @@
 //! # Example
 //!
 //! ```no_run
-//! use revm_trace::utils::{erc20_utils, proxy_utils};
-//! # use alloy::primitives::address;
+//! use revm_trace::{
+//!     evm::create_evm_with_inspector,
+//!     utils::{erc20_utils, proxy_utils},
+//!     inspectors::TxInspector,
+//! };
+//! use alloy::primitives::address;
+//!
 //! # async fn example() -> anyhow::Result<()> {
-//! # let mut evm = todo!();
+//! // Initialize EVM with inspector
+//! let mut evm = create_evm_with_inspector(
+//!     "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
+//!     TxInspector::new(),
+//! ).await?;
 //!
 //! // Check if contract is a proxy
 //! let contract = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-//! if let Some(impl_addr) = proxy_utils::get_implement(&mut evm, contract).await? {
+//! if let Some(impl_addr) = proxy_utils::resolve_implementation(&mut evm, contract)? {
 //!     // Get token metadata if it's an ERC20
-//!     let symbol = erc20_utils::get_token_symbol(&mut evm, contract)?;
-//!     println!("Token {} implementation: {}", symbol, impl_addr);
+//!     if let Ok(symbol) = erc20_utils::get_symbol(&mut evm, contract) {
+//!         println!("Token {} implementation: {}", symbol, impl_addr);
+//!     }
 //! }
 //! # Ok(())
 //! # }

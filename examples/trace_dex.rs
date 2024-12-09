@@ -11,6 +11,7 @@
 
 use std::collections::HashMap;
 use revm_trace::{
+    TransactionProcessor,
     types::{TxKind,TokenInfo},
     utils::erc20_utils::get_token_infos,
     create_evm_with_inspector, SimulationBatch, SimulationTx, TxInspector
@@ -122,7 +123,7 @@ async fn main() -> Result<()> {
         block_env,
         transactions: vec![tx],
         is_stateful: true,
-    }).unwrap()[0].clone();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0].clone();
 
     // Verify transaction success
     println!("\nTransaction Result:");

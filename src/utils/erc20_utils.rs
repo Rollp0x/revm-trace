@@ -2,9 +2,7 @@
 //!
 //! This module provides helper functions for interacting with ERC20 tokens:
 //! - Reading token metadata (symbol, decimals)
-//! - Checking token balances
-//! - Handling ABI encoding/decoding
-//! - Error handling for token interactions
+//! - Parsing ERC20 Transfer events
 
 use alloy::{
     sol,
@@ -16,7 +14,8 @@ use alloy::{
 };
 use anyhow::Result;
 use revm::{db::{AlloyDB, CacheDB, WrapDatabaseRef}, primitives::{ExecutionResult, Output}, Inspector};
-use crate::{TraceEvm,types::{TokenInfo,BlockEnv}};
+use crate::evm::TraceEvm;
+use crate::types::{TokenInfo,BlockEnv};
 use crate::traits::Reset;
 use crate::errors::{TokenError,EvmError};
 use once_cell::sync::Lazy;
@@ -32,7 +31,7 @@ static TRANSFER_EVENT_SIGNATURE: Lazy<FixedBytes<32>> =
 // Generates Rust bindings for:
 // - symbol(): Returns token symbol
 // - decimals(): Returns token decimal places
-// - balanceOf(address): Returns token balance for an account
+
 sol! {
     function symbol() public returns (string);
     function decimals() public returns (uint8);
@@ -49,7 +48,7 @@ where
     P: Provider<T>,
     I: Inspector<WrapDatabaseRef<CacheDB<AlloyDB<T, Ethereum, P>>>> + Reset,
 {
-    // 查询 symbol
+    // query symbol
     let tx = evm.tx_mut();
     tx.transact_to = TxKind::Call(*token);
     tx.value = U256::ZERO;
@@ -68,7 +67,7 @@ where
         _ => return Err(TokenError::QueryFailed { address: token.to_string(), reason: "Failed to get symbol".to_string() }),
     };
 
-    // 查询 decimals
+    // query decimals
     let tx = evm.tx_mut();
     tx.data = decimals_encoded.into();
 

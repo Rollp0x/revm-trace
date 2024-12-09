@@ -19,6 +19,7 @@
 
 use revm_trace::{
     types::TxKind,
+    TransactionProcessor,
     create_evm_with_inspector, SimulationBatch, SimulationTx, TxInspector
 };
 use anyhow::Result;
@@ -72,14 +73,14 @@ async fn main() -> Result<()> {
 
     // Verify failure
     assert!(
-        result.is_err(),
+        result[0].is_err(),
         "❌ Expected transfer to fail due to insufficient balance"
     );
 
     // Display error details
     println!(
         "{}",
-        format!("Result:❌ {:#?}", result.unwrap_err()).red()
+        format!("Result:❌ {:#?}", result[0].as_ref().unwrap_err()).red()
     );
 
     Ok(())
