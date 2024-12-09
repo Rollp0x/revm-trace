@@ -77,7 +77,7 @@ async fn main() -> Result<()> {
         block_env,
         is_stateful: true,
         transactions: vec![tx0,tx1],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();;
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     let result = results[1].0.output().unwrap();
     let owner = Address::from_slice(&result[12..32]);

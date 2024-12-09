@@ -44,11 +44,11 @@ async fn get_block_env(http_url: &str,block_number:Option<u64>) -> BlockEnv {
         .on_http(http_url.parse().unwrap());
     if let Some(block_number) = block_number {
         let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number),false).await.unwrap().unwrap();
-        return BlockEnv { number: block_number, timestamp: block_info.header.timestamp };
+        BlockEnv { number: block_number, timestamp: block_info.header.timestamp }
     } else {
         let latest_block = provider.get_block_number().await.unwrap();
         let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block),false).await.unwrap().unwrap();
-        return BlockEnv { number: latest_block, timestamp: block_info.header.timestamp };
+        BlockEnv { number: latest_block, timestamp: block_info.header.timestamp }
     }
 }
 
@@ -58,11 +58,11 @@ async fn get_block_env_ws(ws_url: &str, block_number: Option<u64>) -> BlockEnv {
         .on_ws(WsConnect::new(ws_url)).await.unwrap();
     if let Some(block_number) = block_number {
         let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number),false).await.unwrap().unwrap();
-        return BlockEnv { number: block_number, timestamp: block_info.header.timestamp };
+        BlockEnv { number: block_number, timestamp: block_info.header.timestamp }
     } else {
         let latest_block = provider.get_block_number().await.unwrap();
         let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block),false).await.unwrap().unwrap();
-        return BlockEnv { number: latest_block, timestamp: block_info.header.timestamp };
+        BlockEnv { number: latest_block, timestamp: block_info.header.timestamp }
     }
 }
 
@@ -645,7 +645,7 @@ async fn test_wth_ws() {
         ],
     };
 
-    let results = evm.process_transactions(txs).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();;
+    let results = evm.process_transactions(txs).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
     assert_eq!(results.len(), 2, "Should have results for both transactions");
 
     // verify first tx

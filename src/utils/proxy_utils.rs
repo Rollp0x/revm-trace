@@ -120,7 +120,7 @@ where
     }
     // First verify if the contract exists
     if evm.db_mut().basic(proxy)
-        .map_err(|e| RuntimeError::AccountAccess(format!("Get contract {} state failed: {}",proxy,e.to_string())))?
+        .map_err(|e| RuntimeError::AccountAccess(format!("Get contract {} state failed: {}",proxy,e)))?
         .is_none()
     {
         return Ok(None);
@@ -128,13 +128,13 @@ where
     // Check each possible implementation slot
     for &slot in IMPLEMENTATION_SLOTS.iter() {
         let value = evm.db_mut().storage(proxy, slot)
-            .map_err(|e| RuntimeError::SlotAccess(format!("Get contract {} slot {} state failed: {}",proxy,slot,e.to_string())))?;
+            .map_err(|e| RuntimeError::SlotAccess(format!("Get contract {} slot {} state failed: {}",proxy,slot,e)))?;
         if value != U256::ZERO {
             let impl_address = Address::from_slice(&value.to_be_bytes::<32>()[12..32]);
 
             // Only verify if the implementation account exists
             if let Some(impl_acc) = evm.db_mut().basic(impl_address)
-                .map_err(|e| RuntimeError::AccountAccess(format!("Get implementation {} state failed: {}",impl_address,e.to_string())))? {
+                .map_err(|e| RuntimeError::AccountAccess(format!("Get implementation {} state failed: {}",impl_address,e)))? {
                 // Check if account has code without loading it
                 if !impl_acc.code_hash.is_zero() {
                     return Ok(Some(impl_address));

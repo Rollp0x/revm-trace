@@ -42,30 +42,27 @@ pub fn parse_custom_error(output: &[u8]) -> Option<String> {
     match selector {
         // Error(string) - 0x08c379a0
         [0x08, 0xc3, 0x79, 0xa0] => {
-            if let Ok(decoded) = DynSolType::String.abi_decode(&output[4..]) {
-                if let DynSolValue::String(reason) = decoded {
-                    return Some(reason);
-                }
+            if let Ok(DynSolValue::String(reason)) = DynSolType::String.abi_decode(&output[4..]) {
+                Some(reason)
+            } else {
+                None
             }
-            None
         },
         // Panic(uint256) - 0x4e487b71
         [0x4e, 0x48, 0x7b, 0x71] => {
-            if let Ok(decoded) = DynSolType::Uint(256).abi_decode(&output[4..]) {
-                if let DynSolValue::Uint(code, _) = decoded {
-                    return Some(match code.to::<u64>() {
-                        0x01 => "Panic: Assertion failed".to_string(),
-                        0x11 => "Panic: Arithmetic overflow".to_string(),
-                        0x12 => "Panic: Division by zero".to_string(),
-                        0x21 => "Panic: Invalid array access".to_string(),
-                        0x22 => "Panic: Array access out of bounds".to_string(),
-                        0x31 => "Panic: Invalid enum value".to_string(),
-                        0x32 => "Panic: Invalid storage access".to_string(),
-                        0x41 => "Panic: Zero initialization".to_string(),
-                        0x51 => "Panic: Invalid calldata access".to_string(),
-                        code => format!("Panic: Unknown error code (0x{:x})", code),
-                    });
-                }
+            if let Ok(DynSolValue::Uint(code, _)) = DynSolType::Uint(256).abi_decode(&output[4..]) {
+                return Some(match code.to::<u64>() {
+                    0x01 => "Panic: Assertion failed".to_string(),
+                    0x11 => "Panic: Arithmetic overflow".to_string(),
+                    0x12 => "Panic: Division by zero".to_string(),
+                    0x21 => "Panic: Invalid array access".to_string(),
+                    0x22 => "Panic: Array access out of bounds".to_string(),
+                    0x31 => "Panic: Invalid enum value".to_string(),
+                    0x32 => "Panic: Invalid storage access".to_string(),
+                    0x41 => "Panic: Zero initialization".to_string(),
+                    0x51 => "Panic: Invalid calldata access".to_string(),
+                    code => format!("Panic: Unknown error code (0x{:x})", code),
+                });
             }
             None
         },

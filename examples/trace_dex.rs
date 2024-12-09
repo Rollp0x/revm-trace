@@ -95,7 +95,7 @@ async fn main() -> Result<()> {
     println!("------------------");
     println!("Caller: {}", caller);
     println!("Router: {}", router);
-    println!("Path: {} -> {}\n", "WETH", "USDC");
+    println!("Path: WETH -> USDC\n");
 
     // Prepare swap transaction
     let swap_amount = U256::from(100000000000000000u128); // 0.1 ETH
