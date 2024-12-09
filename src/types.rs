@@ -8,13 +8,14 @@
 
 /// Re-exports from revm and alloy for user convenience
 pub use revm::interpreter::{CallScheme, CreateScheme, InstructionResult};
+pub use revm::primitives::{Output,ExecutionResult};
 pub use alloy::primitives::{Address, U256, Bytes, Log, TxKind};
-pub use revm::primitives::Output;
+
+use serde::Serialize;
 use alloy::{
     network::Ethereum,
-    providers::{Provider, RootProvider},
-    transports::{Transport, http::{Client, Http}},
-    pubsub::PubSubFrontend,
+    providers::RootProvider,
+    transports::http::{Client, Http},
 };
 use revm::{
     Evm,
@@ -32,9 +33,6 @@ pub type InspectorDB<T, P> = WrapDatabaseRef<CacheDBType<T, P>>;
 
 // EVM types
 pub type InspectorEvm<'a, T, P, I> = Evm<'a, I, InspectorDB<T, P>>;
-
-// ... other existing types ...
-use serde::Serialize;
 
 /// Default native token (ETH) address - the zero address
 pub const NATIVE_TOKEN_ADDRESS: Address = Address::ZERO;

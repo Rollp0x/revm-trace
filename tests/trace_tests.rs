@@ -24,7 +24,8 @@
 //! - Old blocks: Requires archive node access
 
 use revm_trace::{
-    Database,
+    TransactionProcessor,
+    traits::Database,
     types::TxKind,
     create_evm_ws, create_evm_with_inspector, 
     utils::error_utils::parse_custom_error, BlockEnv, SimulationBatch, SimulationTx, TxInspector
@@ -181,7 +182,7 @@ async fn test_nested_revert_with_try_catch() {
         block_env,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     // verify results
     assert_eq!(results.len(), 4, "Each tx should have an ExecutionResult");
@@ -284,7 +285,7 @@ async fn test_nested_revert_with_multicall() {
         block_env,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     // verify results
     assert_eq!(results.len(), 4, "Each tx should have one execution result");
@@ -381,7 +382,7 @@ async fn test_nested_revert_without_multicall() {
         block_env,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     // verify results
     assert_eq!(results.len(), 4, "Should have results for all four transactions");
@@ -482,7 +483,7 @@ async fn test_multicall_with_error() {
         block_env,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     // verify results
     assert_eq!(results.len(), 3, "Each tx should have one execution result");
@@ -534,7 +535,7 @@ async fn test_create_contract() {
         block_env: block_env.clone(),
         is_stateful: false,
         transactions: vec![tx0],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
     assert_eq!(results.len(), 1, "Should have results for one transaction");
     let result = &results[0].0;
     assert!(result.is_success(), "Contract creation should succeed");
@@ -575,7 +576,7 @@ async fn test_stateful_and_stateless_call_trace() {
         block_env: block_env.clone(),
         is_stateful: false,
         transactions: vec![tx0.clone(), tx1.clone()],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     assert_eq!(results.len(), 2, "Should have results for two transactions");
     assert!(results[0].0.is_success(), "Contract creation should succeed");
@@ -592,7 +593,7 @@ async fn test_stateful_and_stateless_call_trace() {
         block_env: block_env.clone(),
         is_stateful: true,
         transactions: vec![tx0.clone(), tx1.clone()],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 
     assert_eq!(results.len(), 2, "Should have results for two transactions");
     assert!(results[0].0.is_success(), "Contract creation should succeed");
@@ -644,7 +645,7 @@ async fn test_wth_ws() {
         ],
     };
 
-    let results = evm.process_transactions(txs).unwrap();
+    let results = evm.process_transactions(txs).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();;
     assert_eq!(results.len(), 2, "Should have results for both transactions");
 
     // verify first tx

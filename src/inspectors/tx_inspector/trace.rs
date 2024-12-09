@@ -113,11 +113,12 @@ impl TxInspector {
                 },
                 SuccessOrHalt::Halt(reason) => CallStatus::Halt(format!("{:?}", reason)),
                 SuccessOrHalt::FatalExternalError => CallStatus::FatalError,
+                // Internal state is impossible here as call_end is only called after execution completion
                 SuccessOrHalt::Internal(_) => CallStatus::Success,
             };
 
-            trace.status = status.clone();
-            
+            trace.status = status;
+
             // Mark as error origin if this call failed but all subtraces succeeded
             trace.error_origin = !trace.status.is_success() && 
                 trace.subtraces.iter().all(|subtrace| subtrace.status.is_success());

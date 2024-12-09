@@ -5,28 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2024-12-02
-
-### Changed
-- Completely refactored EVM initialization and interaction
-  - Simplified EVM instance creation with `create_evm`
-  - Improved transaction simulation interface
-  - Enhanced error handling and status reporting
-  - Better support for proxy contracts (EIP-1967, UUPS)
-  - More efficient token transfer tracking
-  - Thread-safe design for concurrent simulations
+## [2.0.0] - 2024-12-09
 
 ### Added
-- New `TransactionStatus` enum for comprehensive execution status reporting
-  - `Success`: Transaction succeeded completely
-  - `PartialSuccess`: Transaction succeeded but with internal errors
-  - `Failed`: Transaction failed with detailed error information
-- Added support for historical state access
-- Improved multicall transaction support
-- Enhanced asset transfer tracking for both native and ERC20 tokens
+- Comprehensive trait system for extensible EVM functionality
+  - Full support for REVM's `Inspector` trait
+  - Custom `TxInspector` for transaction analysis
+  - `TraceOutput` for flexible result formatting
+  - `TransactionProcessor` for standardized transaction handling
+  - `Reset` for state management
+- Enhanced inspector implementation
+  - Built on REVM's inspector system
+  - Modular transaction analysis with `TxInspector`
+  - Configurable trace collection
+  - Improved state tracking
+  - Easy integration with custom REVM inspectors
+- WebSocket provider support with dedicated builder
+- Batch transaction processing with state management
+  - Stateful/stateless execution modes
+  - Automatic state reset functionality
+  - Concurrent execution support
+
+### Changed
+- Complete architecture redesign
+  - New builder pattern for EVM creation
+  - Improved error handling hierarchy
+  - Better separation of concerns
+  - More flexible configuration options
+- Enhanced transaction processing
+  - Standardized execution flow
+  - Improved error propagation
+  - Better state management
+- Modular inspector system
+  - Customizable trace collection
+  - Flexible output formatting
+  - State management utilities
+
+### Improved
+- Documentation and examples
+  - Comprehensive API documentation
+  - Clear usage examples
+  - Detailed error descriptions
+- Error handling
+  - New error type hierarchy
+  - Better error context
+  - Improved error messages
+- Testing infrastructure
+  - More comprehensive test cases
+  - Better test utilities
+  - Improved test coverage
 
 ### Features
-- Added `ws` feature for WebSocket RPC support
+- `ws` - WebSocket provider support
+- `http` - HTTP provider support (default)
+- `async` - Asynchronous execution support
 
 ## [1.0.0] - 2024-11-29
 

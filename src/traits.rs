@@ -33,6 +33,9 @@
 /// ```
 pub use revm::{Inspector, Database,GetInspector};
 
+use crate::types::{SimulationBatch,ExecutionResult};
+use crate::errors::EvmError;
+
 /// Defines how an inspector can reset its internal state
 /// 
 /// This trait is crucial for inspectors that maintain state between transactions
@@ -124,3 +127,45 @@ where
     DB: Database,
     T: Inspector<DB> + Reset + TraceOutput
 {}
+
+
+
+/// Defines standard transaction processing capabilities
+/// 
+/// This trait establishes a standardized flow for transaction processing:
+/// 1. Transaction preparation and validation
+/// 2. Execution in EVM
+/// 3. Result collection and state management
+/// 
+/// Implementors must follow this standard flow to ensure consistent behavior
+/// across different execution contexts.
+pub trait TransactionProcessor {
+    /// Type of data collected by the inspector during execution
+    type InspectorOutput;
+    
+    /// Process a batch of transactions following the standard flow
+    /// 
+    /// # Standard Flow
+    /// 1. **Preparation**
+    ///    - Configure block environment
+    ///    - Reset necessary states
+    /// 
+    /// 2. **Execution**
+    ///    - Process all transactions
+    ///    - Collect execution results
+    ///    - Gather inspector data
+    /// 
+    /// 3. **State Management**
+    ///    - Handle state persistence
+    ///    - Reset states as needed
+    /// 
+    /// # Arguments
+    /// * `batch` - Contains transactions and execution parameters
+    /// 
+    /// # Returns
+    /// * Vector of results for each transaction
+    fn process_transactions(
+        &mut self,
+        batch: SimulationBatch
+    ) -> Vec<Result<(ExecutionResult, Self::InspectorOutput), EvmError>>;
+}

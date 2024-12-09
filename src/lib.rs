@@ -25,6 +25,7 @@
 //!
 //! ```rust,no_run
 //! use revm_trace::{
+//!     TransactionProcessor,
 //!     evm::{create_evm_with_inspector},
 //!     types::{BlockEnv, SimulationTx, SimulationBatch},
 //!     inspectors::TxInspector,
@@ -57,7 +58,7 @@
 //! };
 //!
 //! // Execute transaction batch
-//! let results = evm.process_transactions(batch)?;
+//! let results = evm.process_transactions(batch).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
 //!
 //! // Process results
 //! for (execution_result, inspector_output) in results {
@@ -99,7 +100,8 @@ pub mod traits;
 pub mod inspectors;
 pub mod errors;
 
-pub use evm::*;
-pub use inspectors::*;
-pub use traits::*;
-pub use types::*;
+// Re-export only the essential types and functions
+pub use evm::builder::{create_evm, create_evm_with_inspector, create_evm_ws};
+pub use types::{BlockEnv, SimulationTx, SimulationBatch};
+pub use inspectors::TxInspector;
+pub use traits::TransactionProcessor;

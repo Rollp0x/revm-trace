@@ -15,24 +15,44 @@ Perfect for:
 
 ## Key Features
 
-- **Advanced Transaction Simulation**
-  - Preview transaction outcomes without on-chain execution
-  - Simulate complex DeFi interactions safely
-  - Test multi-contract interactions
-  - Support for all EVM-compatible chains
+- **Flexible Inspector System**
+  - Built on REVM's inspector framework
+  - Custom `TxInspector` for transaction analysis
+  - Support for custom inspector implementations
+  - Comprehensive asset transfer tracking
 
-- **Comprehensive Analysis**
-  - Track potential asset transfers (native and ERC20)
-  - Analyze complete call traces
-  - Identify state changes
-  - Detect and locate errors
-  - Collect and decode events
+- **Complete Call Hierarchy Analysis**
+  - Full depth call stack tracking
+  - Detailed call context information
+  - Internal transaction tracing
+  - Precise error location in call stack
+  - Step-by-step execution tracing
 
-- **Developer-Friendly**
-  - Safe, isolated simulation environment
-  - Detailed execution reports
-  - No gas fees or real transactions
-  - Support for historical state analysis
+- **Enhanced Error Handling**
+  - Detailed error messages and traces
+  - Error location in call stack
+  - Revert reason decoding
+  - Custom error parsing
+  - Contract-specific error context
+
+- **Batch Transaction Processing**
+  - Process multiple transactions
+  - Stateful/stateless execution modes
+  - Automatic state management
+  - Detailed execution results
+
+- **Asset Analysis**
+  - Native token transfers
+  - ERC20 token transfers
+  - Transfer event parsing
+  - Balance change tracking
+  - Complete transaction logs
+
+## Features
+  - `async` - Enable async support
+  - `ws` - WebSocket provider support
+  - `http` - HTTP provider support (default)
+
 
 ## Installation
 
@@ -45,90 +65,69 @@ revm-trace = "2.0.0"
 
 ```rust
 use revm_trace::{
-    create_evm,
-    BlockEnv,
-    SimulationTx,
-    SimulationBatch,
-    Tracer,
-    types::TxKind,
-    TransactionStatus,
+    TransactionProcessor,
+    evm::create_evm_with_inspector,
+    types::{BlockEnv, SimulationTx, SimulationBatch},
+    inspectors::TxInspector,
 };
-use alloy::primitives::{address, U256};
+use alloy::primitives::{address, U256, TxKind};
 
-async fn simulate_transfer_eth() -> anyhow::Result<()> {
-    // Initialize simulation environment
-    let mut evm = create_evm(
-        "https://rpc.ankr.com/eth",
-        Some(1), // Ethereum mainnet
-        None,    // No custom configs
-    )?;
 
-    // Prepare transaction to simulate
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Initialize EVM with transaction inspector
+    let mut evm = create_evm_with_inspector(
+        "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
+        TxInspector::new(),
+    ).await?;
+
+    // Create simulation transaction
     let tx = SimulationTx {
         caller: address!("dead00000000000000000000000000000000beef"),
-        transact_to: TxKind::Call(address!("dac17f958d2ee523a2206206994597c13d831ec7")), // USDT
+        transact_to: TxKind::Call(address!("dac17f958d2ee523a2206206994597c13d831ec7")),
         value: U256::from(1000000000000000000u64), // 1 ETH
-        data: vec![].into(), // Transaction data (e.g., swap function call)
+        data: vec![].into(),
     };
 
-    // Simulate transaction and analyze potential outcomes
-    let result = evm.trace_tx(
-        tx,
-        BlockEnv {
+    // Create batch with single transaction
+    let batch = SimulationBatch {
+        block_env: BlockEnv {
             number: 18000000,
             timestamp: 1700000000,
         },
-    )?;
+        transactions: vec![tx],
+        is_stateful: false,
+    };
 
-    // Analyze simulation results
-    match result.execution_status() {
-        TransactionStatus::Success => {
-            println!("Transaction would succeed!");
-            // Preview potential asset transfers
-            for transfer in result.asset_transfers {
-                println!(
-                    "Predicted transfer: {} from {} to {}",
-                    transfer.value, transfer.from, transfer.to
-                );
+    // Execute transaction batch
+    let results = evm.process_transactions(batch)
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
+
+    // Process results
+    for (execution_result, inspector_output) in results {
+        match execution_result.is_success {
+            true => {
+                println!("Transaction succeeded!");
+                for transfer in inspector_output.asset_transfers {
+                    println!(
+                        "Transfer: {} from {} to {}",
+                        transfer.value, transfer.from, transfer.to
+                    );
+                }
             }
-            // Preview emitted events
-            for log in result.logs {
-                println!("Expected event: {:?}", log);
-            }
-        }
-        TransactionStatus::PartialSuccess => {
-            println!("Transaction succeeded but with some internal errors");
-        }
-        TransactionStatus::Failed { error, origin_error } => {
-            println!("Transaction would fail:");
-            println!("Error: {}", error);
-            if let Some(origin) = origin_error {
-                println!("Original error: {}", origin);
+            false => {
+                println!("Transaction failed!");
+                if let Some(error_trace) = inspector_output.error_trace_address {
+                    println!("Error occurred at call depth: {}", error_trace.len());
+                }
             }
         }
     }
 
     Ok(())
 }
-```
-
-
-
-## Usage Examples
-
-### Simulating Multiple Transactions
-
-```rust
-let batch = SimulationBatch {
-  block_env: BlockEnv {
-    number: 18000000,
-    timestamp: 1700000000,
-  },
-  is_multicall: true, // Simulate as atomic multicall
-  transactions: vec![approve_tx, swap_tx, transfer_tx],
-};
-let results = evm.trace_txs(batch)?;
-// Analyze combined effects of all transactions
 ```
 
 
@@ -178,11 +177,15 @@ The EVM instance is not thread-safe and cannot be shared between threads. Here's
 
 ```rust
 // DON'T share a single EVM instance across threads
-let mut evm = create_evm("https://rpc...", Some(1), None)?;
-let results: Vec<> = transactions
+let mut evm = create_evm_with_inspector("https://rpc...", TxInspector::new()).await?;
+let results: Vec<_> = transactions
   .par_iter() // ❌ This will fail - EVM instance is not thread-safe
   .map(|tx| {
-    evm.trace_tx(tx.clone(), block_env.clone()) // Sharing EVM across threads
+    evm.process_transactions(SimulationBatch {
+      block_env: block_env.clone(),
+      transactions: vec![tx.clone()],
+      is_stateful: true,
+    }) // Sharing EVM across threads
   })
   .collect();
 ```
@@ -193,24 +196,34 @@ let results: Vec<> = transactions
 
 ```rust
 // Process transactions sequentially with a single EVM instance
-let mut evm = create_evm("https://rpc...", Some(1), None)?;
-let results: Vec<> = transactions
+let mut evm = create_evm_with_inspector("https://rpc...", TxInspector::new()).await?;
+let results: Vec<_> = transactions
   .iter()
-  .map(|tx| evm.trace_tx(tx.clone(), block_env.clone()))
+  .map(|tx| {
+    evm.process_transactions(SimulationBatch {
+        block_env: block_env.clone(),
+        transactions: vec![tx.clone()],
+        is_stateful: true,
+      })
+    })
   .collect();
 ```
 
 2. **Parallel Processing with Multiple Instances**
 
 ```rust
-use rayon::prelude::;
+use rayon::prelude::*;
 // Create new EVM instance for each thread
-let results: Vec<> = transactions
+let results: Vec<Result<_, _>> = transactions
   .par_iter()
-  .map(|tx| {
+  .map(|tx| async {
     // Each thread gets its own EVM instance
-    let mut evm = create_evm("https://rpc...", Some(1), None)?;
-    evm.trace_tx(tx.clone(), block_env.clone())
+    let mut evm = create_evm_with_inspector("https://rpc...", TxInspector::new()).await?;
+    evm.process_transactions(SimulationBatch {
+      block_env: block_env.clone(),
+      transactions: vec![tx.clone()],
+      is_stateful: true,
+    })
   })
   .collect();
 ```

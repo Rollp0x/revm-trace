@@ -7,9 +7,10 @@
 //! - Verifying contract state after deployment
 
 use revm_trace::{
-    Database,
+    TransactionProcessor,
+    traits::Database,
     types::TxKind,
-    TracerEip3155,
+    inspectors::TracerEip3155,
     create_evm_with_inspector, SimulationBatch, SimulationTx,
 };
 use anyhow::Result;
@@ -76,7 +77,7 @@ async fn main() -> Result<()> {
         block_env,
         is_stateful: true,
         transactions: vec![tx0,tx1],
-    }).unwrap();
+    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
     let result = results[1].0.output().unwrap();
     let owner = Address::from_slice(&result[12..32]);
     println!("Owner: {:?}", owner);

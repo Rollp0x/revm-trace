@@ -17,5 +17,3 @@ pub mod tx_inspector;
 
 pub use revm_inspectors::*;
 pub use tx_inspector::*;
-
-pub use revm::GetInspector;

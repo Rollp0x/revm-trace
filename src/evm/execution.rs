@@ -4,8 +4,50 @@
 //! - Single transaction processing
 //! - Batch transaction handling
 //! - Execution result management
+//!
+//! # Standard Execution Flow
+//! 
+//! The execution process follows a standardized flow for all inspector types:
+//! 
+//! 1. **Transaction Preparation**
+//!    - Reset inspector state
+//!    - Configure transaction parameters (caller, target, value, data)
+//!    - Set up execution environment (block context, chain settings)
+//! 
+//! 2. **Execution Phase**
+//!    - Execute transaction in EVM
+//!    - Collect execution results (success/revert/error)
+//!    - Gather inspector data (traces, transfers, logs)
+//! 
+//! 3. **State Management**
+//!    - Reset database state (if non-stateful)
+//!    - Maintain execution context between transactions
+//!    - Handle state persistence based on configuration
+//! 
+//! 4. **Result Collection**
+//!    - Process execution outcome (success/failure)
+//!    - Convert error types if necessary (Runtime -> Evm)
+//!    - Package results with inspector data for analysis
+//!
+//! # Batch Processing
+//! 
+//! When processing multiple transactions:
+//! - All transactions are executed regardless of previous failures
+//! - Each transaction maintains its own execution context
+//! - Database state can be preserved between transactions if needed
+//! - Inspector state is reset after all transactions complete
+//! 
+//! # Error Handling
+//! 
+//! The system distinguishes between two types of errors:
+//! - `RuntimeError`: Execution-level errors (revert, out of gas, etc.)
+//! - `EvmError`: System-level errors (invalid transaction, node failure, etc.)
+//!
+//! Error conversion follows a standard path:
+//! 1. EVM errors -> RuntimeError (in process_transaction_internal)
+//! 2. RuntimeError -> EvmError (in process_transactions)
 
-use crate::traits::{GetInspector, Reset, TraceOutput};
+use crate::traits::{GetInspector, Reset, TraceOutput, TransactionProcessor};
 use crate::types::{InspectorDB, SimulationTx, SimulationBatch};
 use crate::errors::{RuntimeError, EvmError};
 use alloy::{
@@ -13,8 +55,9 @@ use alloy::{
     transports::Transport,
 };
 use revm::primitives::ExecutionResult;
-
 use super::TraceEvm;
+
+
 
 impl<'a, T, P, I> TraceEvm<'a, T, P, I>
 where
@@ -24,18 +67,23 @@ where
 {
     /// Process a single transaction and collect results
     /// 
+    /// Executes a single transaction with full inspection and result collection.
+    /// This internal method handles the core execution logic and error conversion.
+    /// 
     /// # Steps
-    /// 1. Reset inspector state
-    /// 2. Configure transaction parameters
-    /// 3. Execute transaction
-    /// 4. Collect inspector output
+    /// 1. Reset inspector state for clean execution
+    /// 2. Configure transaction parameters (caller, target, value, data)
+    /// 3. Execute transaction in EVM context
+    /// 4. Collect and package execution results
     /// 
     /// # Arguments
     /// * `input` - Transaction parameters for simulation
     /// 
     /// # Returns
-    /// * `Ok((ExecutionResult, I::Output))` - Execution result and inspector data
-    /// * `Err(RuntimeError)` - If execution fails
+    /// * `Ok((ExecutionResult, I::Output))` - Successful execution with:
+    ///   - ExecutionResult: EVM execution outcome
+    ///   - I::Output: Collected inspector data
+    /// * `Err(RuntimeError)` - Execution failed with runtime error
     /// 
     /// # Type Parameters
     /// * `I: Reset + TraceOutput` - Inspector must support state reset and output collection
@@ -65,50 +113,71 @@ where
         
         Ok((execution_result, inspector_output))
     }
+} 
 
-    /// Process multiple transactions in batch mode
+
+impl<'a, T, P, I> TransactionProcessor for TraceEvm<'a, T, P, I>
+where
+    T: Transport + Clone,
+    P: Provider<T>,
+    I: 'a + GetInspector<InspectorDB<T, P>> + Reset + TraceOutput,
+{
+    type InspectorOutput = I::Output;
+
+    /// Process a batch of transactions following the standard execution flow
+    /// 
+    /// Executes multiple transactions while managing state and collecting results.
+    /// Follows the standardized execution flow defined in the trait documentation.
+    /// 
+    /// # Processing Steps
+    /// 1. **Preparation**
+    ///    - Configure block environment for all transactions
+    ///    - Initialize result collection
+    /// 
+    /// 2. **Execution**
+    ///    - Process each transaction independently
+    ///    - Convert runtime errors to system errors
+    ///    - Maintain state based on configuration
+    /// 
+    /// 3. **State Management**
+    ///    - Reset database if non-stateful
+    ///    - Final inspector reset after completion
     /// 
     /// # Arguments
-    /// * `batch` - Batch configuration containing:
+    /// * `batch` - Contains:
     ///   - Block environment settings
-    ///   - List of transactions
+    ///   - Transaction list
     ///   - State persistence flag
     /// 
     /// # Returns
-    /// * `Ok(Vec<(ExecutionResult, I::Output)>)` - Results for each transaction
-    /// * `Err(EvmError)` - If batch processing fails
-    /// 
-    /// # Features
-    /// - Configures block environment for all transactions
-    /// - Optionally maintains state between transactions
-    /// - Collects results for each transaction
-    /// 
-    /// # Type Parameters
-    /// * `I: Reset + TraceOutput` - Inspector must support state reset and output collection
-    pub fn process_transactions(
+    /// * Vector of results where each entry contains:
+    ///   - ExecutionResult: Transaction execution outcome
+    ///   - InspectorOutput: Collected trace data
+    ///   - Or EvmError if processing failed
+    fn process_transactions(
         &mut self,
         batch: SimulationBatch
-    ) -> Result<Vec<(ExecutionResult, I::Output)>, EvmError>
-    where
-        I: Reset + TraceOutput,
-    {   
+    ) -> Vec<Result<(ExecutionResult, Self::InspectorOutput), EvmError>> {
         let SimulationBatch { block_env, transactions, is_stateful } = batch;
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(transactions.len());
         
-        // Configure block environment for all transactions
+        // 1. Preparation
         self.set_block_env(block_env);
         
-        // Process each transaction
+        // 2. Execution
         for input in transactions {
-            let exec_result = self.process_transaction_internal(input)?;
-            results.push(exec_result);
+            let result = self.process_transaction_internal(input)
+                .map_err(EvmError::Runtime);
+            results.push(result);
             
-            // Reset state for independent transactions
             if !is_stateful {
-                self.reset_db().reset_inspector();
+                self.reset_db();
             }
         }
         
-        Ok(results)
+        // 3. State Management
+        self.reset_inspector();
+        
+        results
     }
-}    
+}
