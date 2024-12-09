@@ -62,13 +62,13 @@
 //!
 //! // Process results
 //! for (execution_result, inspector_output) in results {
-//!     match execution_result.is_success {
+//!     match execution_result.is_success() {
 //!         true => {
 //!             println!("Transaction succeeded!");
 //!             for transfer in inspector_output.asset_transfers {
 //!                 println!(
 //!                     "Transfer: {} from {} to {}",
-//!                     transfer.value, transfer.from, transfer.to
+//!                     transfer.value, transfer.from, transfer.to.unwrap()
 //!                 );
 //!             }
 //!         }
