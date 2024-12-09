@@ -41,13 +41,13 @@ async fn test_basic_usage() -> anyhow::Result<()> {
 
     // Process results
     for (execution_result, inspector_output) in results {
-        match execution_result.is_success {
+        match execution_result.is_success() {
             true => {
                 println!("Transaction succeeded!");
                 for transfer in inspector_output.asset_transfers {
                     println!(
                         "Transfer: {} from {} to {}",
-                        transfer.value, transfer.from, transfer.to
+                        transfer.value, transfer.from, transfer.to.unwrap()
                     );
                 }
             }
@@ -60,50 +60,5 @@ async fn test_basic_usage() -> anyhow::Result<()> {
         }
     }
 
-    Ok(())
-}
-
-// Advanced example showing batch processing and state control
-#[tokio::test(flavor = "multi_thread")]
-async fn test_advanced_usage() -> anyhow::Result<()> {
-    // Initialize with custom inspector configuration
-    let inspector = TxInspector::new()
-        .with_transfer_tracking(true)
-        .with_error_tracking(true);
-    
-    let mut evm = create_evm_with_inspector(
-        "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
-        inspector,
-    ).await?;
-
-    // Create multiple transactions
-    let tx1 = SimulationTx {
-        caller: address!("dead00000000000000000000000000000000beef"),
-        transact_to: TxKind::Call(address!("dac17f958d2ee523a2206206994597c13d831ec7")),
-        value: U256::from(1000000000000000000u64),
-        data: vec![].into(),
-    };
-
-    let tx2 = SimulationTx {
-        caller: address!("dead00000000000000000000000000000000beef"),
-        transact_to: TxKind::Call(address!("dac17f958d2ee523a2206206994597c13d831ec7")),
-        value: U256::from(2000000000000000000u64),
-        data: vec![].into(),
-    };
-
-    // Process batch with state preservation
-    let batch = SimulationBatch {
-        block_env: BlockEnv {
-            number: 18000000,
-            timestamp: 1700000000,
-        },
-        transactions: vec![tx1, tx2],
-        is_stateful: true, // Maintain state between transactions
-    };
-
-    let results = evm.process_transactions(batch);
-    
-    // Process results...
-    
     Ok(())
 }

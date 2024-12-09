@@ -20,7 +20,9 @@ impl Reset for NoOpInspector {
 
 impl TraceOutput for NoOpInspector {
     type Output = ();
-    fn get_output(&self) -> Self::Output { () }
+    fn get_output(&self) -> Self::Output { 
+        // Do nothing
+     }
 }
 
 // GasInspector implementations
@@ -32,7 +34,9 @@ impl Reset for GasInspector {
 
 impl TraceOutput for GasInspector {
     type Output = ();
-    fn get_output(&self) -> Self::Output { () }
+    fn get_output(&self) -> Self::Output { 
+        // Do nothing
+     }
 }
 
 // CustomPrintTracer implementations
@@ -43,7 +47,9 @@ impl Reset for CustomPrintTracer {
 
 impl TraceOutput for CustomPrintTracer {
     type Output = ();
-    fn get_output(&self) -> Self::Output { () }
+    fn get_output(&self) -> Self::Output { 
+        // Do nothing
+     }
 }
 
 // TracerEip3155 implementations
@@ -63,6 +69,6 @@ impl Reset for TracerEip3155 {
 impl TraceOutput for TracerEip3155 {
     type Output = ();
     fn get_output(&self) -> Self::Output {
-        ()
+        // Do nothing
     }
 }
