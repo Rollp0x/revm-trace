@@ -1,6 +1,6 @@
 [package]
 name = "revm-trace"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 authors = ["Rollp0x <zkrollp@gmail.com>"]
 description = "A Rust library for tracing EVM transactions, including call traces, asset transfers, and error analysis using REVM"

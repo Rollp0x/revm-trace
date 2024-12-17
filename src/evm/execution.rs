@@ -163,6 +163,7 @@ where
         
         // 1. Preparation
         self.set_block_env(block_env);
+        self.reset_db();
         
         // 2. Execution
         for input in transactions {
