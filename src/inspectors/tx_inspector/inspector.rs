@@ -169,13 +169,12 @@ impl<DB: Database> Inspector<DB> for TxInspector {
     fn call_end(
         &mut self,
         _context: &mut EvmContext<DB>,
-        inputs: &CallInputs,
+        _inputs: &CallInputs,
         outcome: CallOutcome,
     ) -> CallOutcome {
         self.handle_end(outcome.result.result, outcome.result.gas.spent(), outcome.result.output.clone());
-        if inputs.scheme != CallScheme::DelegateCall {
-            self.address_stack.pop();
-        }
+        self.address_stack.pop();
+        
         outcome
     }
 
