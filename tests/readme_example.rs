@@ -17,16 +17,16 @@ async fn test_basic_usage() -> anyhow::Result<()> {
 
     // Create simulation transaction
     let tx = SimulationTx {
-        caller: address!("dead00000000000000000000000000000000beef"),
-        transact_to: TxKind::Call(address!("dac17f958d2ee523a2206206994597c13d831ec7")),
-        value: U256::from(1000000000000000000u64), // 1 ETH
+        caller: address!("C255fC198eEdAC7AF8aF0f6e0ca781794B094A61"),
+        transact_to: TxKind::Call(address!("d878229c9c3575F224784DE610911B5607a3ad15")),
+        value: U256::from(120000000000000000u64), //  0.12 ETH
         data: vec![].into(),
     };
 
     // Create batch with single transaction
     let batch = SimulationBatch {
         block_env: BlockEnv {
-            number: 18000000,
+            number: 21784863,
             timestamp: 1700000000,
         },
         transactions: vec![tx],
