@@ -132,7 +132,7 @@ const REVERT_DEMO_BYTECODE:&str = "0x608060405234801561001057600080fd5b506101098
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_with_try_catch() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
+    let mut evm: revm_trace::evm::TraceEvm<'_, alloy::transports::http::Http<alloy::transports::http::Client>, alloy::providers::RootProvider<alloy::transports::http::Http<alloy::transports::http::Client>>, TxInspector> = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
     let block_env = get_block_env(ETH_RPC_URL, None).await;
 
     // get current nonce to calculate contract address
@@ -141,7 +141,7 @@ async fn test_nested_revert_with_try_catch() {
     let revert_demo_address = SENDER.create(nonce);
     let owner_demo_address = SENDER.create(nonce + 1);
 
-    // 1. deploy ReverDemo contract
+    // 1. deploy RevertDemo contract
     let tx0 = SimulationTx {
         caller: SENDER,
         transact_to: TxKind::Create,
@@ -240,6 +240,7 @@ async fn test_nested_revert_with_multicall() {
 
     // get current nonce to calculate contract address
     let current_account = evm.db_mut().basic(SENDER).unwrap().unwrap();
+
     let nonce = current_account.nonce;
     let revert_demo_address = SENDER.create(nonce);
     let owner_demo_address = SENDER.create(nonce + 1);

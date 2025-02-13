@@ -166,12 +166,13 @@ where
         self.reset_db();
         
         // 2. Execution
-        for input in transactions {
+        let len = transactions.len();
+        for (index,input) in transactions.into_iter().enumerate() {
             let result = self.process_transaction_internal(input)
                 .map_err(EvmError::Runtime);
             results.push(result);
             
-            if !is_stateful {
+            if index !=len -1 &&  !is_stateful {
                 self.reset_db();
             }
         }
