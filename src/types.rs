@@ -43,10 +43,13 @@ pub const NATIVE_TOKEN_ADDRESS: Address = Address::ZERO;
 /// and decimal places for proper value formatting.
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TokenInfo {
+    pub name:String,
     /// Token symbol (e.g., "ETH", "USDC")
     pub symbol: String,
     /// Number of decimal places for value formatting
     pub decimals: u8,
+    /// Total supply of the token
+    pub total_supply: U256,
 }
 
 /// Block environment for transaction simulation

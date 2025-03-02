@@ -153,8 +153,10 @@ async fn main() -> Result<()> {
     let token_infos = get_token_infos(&mut evm,&tokens, None).unwrap();
     let mut token_info_map = HashMap::new();
     token_info_map.insert(Address::ZERO, TokenInfo{
+        name: "Ethereum".to_string(),
         symbol: "ETH".to_string(),
         decimals: 18,
+        total_supply: U256::MAX
     });
     for (i,token_info) in token_infos.into_iter().enumerate() {
         token_info_map.insert(tokens[i], token_info);

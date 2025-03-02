@@ -58,7 +58,7 @@ Perfect for:
 
 Add this to your `Cargo.toml`:
 ```toml
-revm-trace = "2.0.3"
+revm-trace = "2.0.4"
 ```
 
 ## Quick Start
