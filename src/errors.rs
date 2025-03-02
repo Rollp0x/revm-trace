@@ -77,12 +77,52 @@ pub enum RuntimeError {
     Revert(String),
 }
 
+#[derive(Debug, Error)]
+pub enum BalanceError {
+    /// Failed to decode balance of a token holder
+    /// 
+    /// # Fields
+    /// * `address` - Token contract address
+    /// * `holder` - Token holder address
+    /// * `reason` - Detailed error message
+    #[error("Failed to decode balance for {holder} in token {address}: {reason}")]
+    BalanceDecode {
+        address: String,
+        holder: String,
+        reason: String,
+    },
+
+    /// Failed to get balance of a owner
+    /// 
+    /// # Fields
+    /// * `holder` - Holder address
+    /// * `reason` - Detailed error message
+    /// 
+    #[error("Failed to get balance of {holder}: {reason}")]
+    BalanceGetError {
+        holder: String,
+        reason: String,
+    },
+}
+
 /// Token-specific errors
 /// 
 /// These errors occur during ERC20 token operations,
 /// including symbol and decimals queries, and general token calls.
 #[derive(Debug, Error)]
 pub enum TokenError {
+
+    /// Failed to decode token name
+    /// 
+    /// # Fields
+    /// * `address` - Token contract address
+    /// * `reason` - Detailed error message
+    #[error("Failed to decode token name for {address}: {reason}")]
+    NameDecode {
+        address: String,
+        reason: String,
+    },
+    
     /// Failed to decode token symbol
     /// 
     /// # Fields
@@ -102,6 +142,30 @@ pub enum TokenError {
     #[error("Failed to decode token decimals for {address}: {reason}")]
     DecimalsDecode {
         address: String,
+        reason: String,
+    },
+
+    /// Failed to decode token total supply
+    /// 
+    /// # Fields
+    /// * `address` - Token contract address
+    /// * `reason` - Detailed error message
+    #[error("Failed to decode token total supply for {address}: {reason}")]
+    TotalSupplyDecode {
+        address: String,
+        reason: String,
+    },
+
+    /// Failed to decode balance of a token holder
+    /// 
+    /// # Fields
+    /// * `address` - Token contract address
+    /// * `holder` - Token holder address
+    /// * `reason` - Detailed error message
+    #[error("Failed to decode balance for {holder} in token {address}: {reason}")]
+    BalanceDecode {
+        address: String,
+        holder: String,
         reason: String,
     },
 
