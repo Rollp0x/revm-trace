@@ -53,12 +53,34 @@ Perfect for:
   - `ws` - WebSocket provider support
   - `http` - HTTP provider support (default)
 
+### TLS Implementation Options
+
+By default, this library uses the system's native TLS implementation (typically OpenSSL). However, you can switch to a pure Rust TLS implementation:
+
+- **rustls-tls**: Uses rustls instead of native-tls (OpenSSL)
+
+```toml
+# In your Cargo.toml
+[dependencies]
+revm-trace = { version = "2.0.5", default-features = false, features = ["rustls-tls"] }
+```
+
+To run examples with rustls-tls:
+```bash
+cargo run --example test_rustls --no-default-features --features rustls-tls
+```
+
+This is particularly useful for:
+- Cross-compilation scenarios
+- Environments where OpenSSL is not available
+- Alpine Linux-based Docker containers
+- WASM targets
 
 ## Installation
 
 Add this to your `Cargo.toml`:
 ```toml
-revm-trace = "2.0.4"
+revm-trace = "2.0.5"
 ```
 
 ## Quick Start

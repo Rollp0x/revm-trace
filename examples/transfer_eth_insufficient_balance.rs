@@ -28,7 +28,7 @@ use colored::*;
 mod common;
 use common::get_block_env;
 
-const ETH_RPC_URL: &str = "https://rpc.ankr.com/eth";
+const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
