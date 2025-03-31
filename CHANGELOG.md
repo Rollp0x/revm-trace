@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2025-3-31
+### Added
+- Added `rustls-tls` feature to replace native-tls (OpenSSL) for improved cross-platform compatibility
+- Simplified Docker builds and deployments by removing OpenSSL dependency
+- Enhanced portability for environments where OpenSSL is unavailable or undesired
+
 ## [2.0.4] - 2025-3-2
 ### Fixed
 - Added functionality to query the name and issuance of ERC20 tokens

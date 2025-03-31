@@ -21,6 +21,17 @@
 //!   - State change tracking
 //!   - Error propagation analysis
 //!
+//! ## Features
+//!
+//! - `rustls-tls`: Uses rustls as the TLS implementation instead of native-tls (OpenSSL).
+//!   This is useful for environments where OpenSSL is not available or not desired.
+//!
+//!   Usage example:
+//!   ```toml
+//!   [dependencies]
+//!   revm-trace = { version = "2.0.5", default-features = false, features = ["rustls-tls"] }
+//!   ```
+//! 
 //! ## Example Usage
 //!
 //! ```rust,no_run
@@ -92,6 +103,8 @@
 //! - `traits`: Trait definitions for extensibility
 //! - `errors`: Error types and handling
 //! - `utils`: Helper functions and utilities
+
+
 
 pub mod types;
 pub mod evm;
