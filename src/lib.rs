@@ -29,7 +29,7 @@
 //!   Usage example:
 //!   ```toml
 //!   [dependencies]
-//!   revm-trace = { version = "2.0.5", default-features = false, features = ["rustls-tls"] }
+//!   revm-trace = { version = "2.0.6", default-features = false, features = ["rustls-tls"] }
 //!   ```
 //! 
 //! ## Example Usage

@@ -48,6 +48,14 @@ Perfect for:
   - Balance change tracking
   - Complete transaction logs
 
+- **Universal Multicall Support**
+  - Dynamic Multicall contract deployment
+  - Batch execution of multiple contract calls
+  - Works on any EVM-compatible chain
+  - Zero dependency on pre-deployed contracts
+  - Optimized for cross-chain compatibility
+  - Support for 100+ calls in single batch
+
 ## Features
   - `async` - Enable async support
   - `ws` - WebSocket provider support
@@ -62,7 +70,7 @@ By default, this library uses the system's native TLS implementation (typically 
 ```toml
 # In your Cargo.toml
 [dependencies]
-revm-trace = { version = "2.0.5", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "2.0.6", default-features = false, features = ["rustls-tls"] }
 ```
 
 To run examples with rustls-tls:
@@ -80,7 +88,7 @@ This is particularly useful for:
 
 Add this to your `Cargo.toml`:
 ```toml
-revm-trace = "2.0.5"
+revm-trace = "2.0.6"
 ```
 
 ## Quick Start
@@ -148,6 +156,60 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    Ok(())
+}
+```
+
+## Batch Contract Calls with Multicall
+
+The library includes universal Multicall support that works on any EVM-compatible chain:
+
+```rust
+use revm_trace::{
+    create_evm,
+    utils::multicall_utils::{MulticallManager, BatchCall},
+    types::BlockEnv,
+};
+use alloy::primitives::{address, U256};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Create EVM instance (no inspector needed for batch calls)
+    let mut evm = create_evm("https://eth.llamarpc.com").await?;
+    
+    // Create Multicall manager
+    let multicall = MulticallManager::new();
+    
+    // Define batch calls (e.g., ERC20 balance queries)
+    let calls = vec![
+        BatchCall {
+            target: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC
+            call_data: /* balanceOf call data */.into(),
+        },
+        BatchCall {
+            target: address!("dAC17F958D2ee523a2206206994597C13D831ec7"), // USDT  
+            call_data: /* balanceOf call data */.into(),
+        },
+    ];
+    
+    // Execute batch calls
+    let results = multicall.deploy_and_batch_call(
+        &mut evm,
+        calls,
+        BlockEnv { number: 19000000, timestamp: 1700000000 },
+        false, // Allow individual call failures
+    )?;
+    
+    // Process results
+    for (i, result) in results.iter().enumerate() {
+        if result.success {
+            let balance = U256::from_be_slice(&result.return_data);
+            println!("Token {}: Balance = {}", i, balance);
+        } else {
+            println!("Token {}: Call failed", i);
+        }
+    }
+    
     Ok(())
 }
 ```
