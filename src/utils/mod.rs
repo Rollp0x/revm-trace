@@ -57,6 +57,8 @@ pub mod error_utils;
 /// Proxy contract analysis utilities
 pub mod proxy_utils;
 
-
 /// Balance calculation utilities
 pub mod balance_utils;
+
+/// Multicall utilities for batch contract calls
+pub mod multicall_utils;

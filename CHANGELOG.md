@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2025-06-15
+### Added
+- **New Multicall utilities module** (`multicall_utils.rs`)
+  - Universal Multicall solution that works on any EVM-compatible chain
+  - Dynamic deployment of Multicall contract in simulation environment
+  - Batch execution of multiple contract calls with individual error handling
+  - Convenience functions for ERC20 balance and token info batch queries
+  - Zero-dependency solution (no need for pre-deployed Multicall contracts)
+  - Lightweight implementation without complex inspector requirements
+- **Enhanced batch processing capabilities**
+  - Support for 100+ contract calls in a single batch operation
+  - Optimized for cross-chain compatibility across all EVM networks
+  - Efficient gas-free simulation environment for batch queries
+
+### Examples
+- Added `multicall_example.rs` demonstrating batch ERC20 balance queries
+- Added `test_contract_address.rs` showing contract deployment address extraction
+
 ## [2.0.5] - 2025-3-31
 ### Added
 - Added `rustls-tls` feature to replace native-tls (OpenSSL) for improved cross-platform compatibility
