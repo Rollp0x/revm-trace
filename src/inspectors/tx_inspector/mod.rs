@@ -24,6 +24,7 @@ use crate::types::*;
 mod trace;
 mod inspector;
 mod traits;
+use alloy::primitives::{Address,Log};
 
 /// Core transaction tracing inspector
 /// 
@@ -85,6 +86,7 @@ pub struct TxTraceOutput {
 impl TxInspector {
     /// Creates a new inspector instance with empty state
     pub fn new() -> Self {
+        println!("🎯 TxInspector::new() - Creating new inspector instance");
         Default::default()
     }
     

@@ -9,23 +9,22 @@
 //! it only reads state from the blockchain.
 
 use revm_trace::{
-    utils::proxy_utils::get_implement,
-    create_evm,
+    utils::proxy_utils::get_implementation,
+    EvmBuilder,
 };
 use anyhow::Result;
 use alloy::primitives::address;
 mod common;
 use common::get_block_env;
 
-const ETH_RPC_URL: &str = "https://rpc.ankr.com/eth";
+const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Starting proxy implementation test...");
-
     // Create EVM instance without inspector since we're only reading state
-    let mut evm = create_evm(ETH_RPC_URL).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await.ok();
+    let mut evm = EvmBuilder::default_inspector(ETH_RPC_URL.to_string()).build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await.ok();
     println!("✅ EVM instance created successfully");
 
     // USDC uses the proxy pattern - this is the proxy contract address
@@ -33,8 +32,8 @@ async fn main() -> Result<()> {
     println!("📝 Testing USDC proxy contract at: {}", usdc_proxy);
 
     // Query the implementation contract address
-    let implementation_address = get_implement(&mut evm, usdc_proxy, block_env).unwrap();
-    
+    let implementation_address = get_implementation(&mut evm, usdc_proxy, block_params).unwrap();
+
     match implementation_address {
         Some(impl_addr) => {
             println!("✅ Implementation contract found at: {}", impl_addr);

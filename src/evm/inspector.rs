@@ -1,62 +1,47 @@
-//! Inspector management functionality for TraceEvm
-//! 
-//! Provides methods for:
-//! - Inspector state management
-//! - Output collection
-//! - State reset operations
+//! Inspector management for TraceEvm
+//!
+//! This module provides inspector-specific functionality for the TraceEvm,
+//! allowing access to trace data and inspector state management.
 
-use crate::traits::{GetInspector, Reset, TraceOutput};
-use crate::types::InspectorDB;
-use alloy::{
-    providers::Provider,
-    transports::Transport,
-};
+use revm::database::{CacheDB,DatabaseRef,Database};
+use revm::handler::MainnetContext;
+use crate::traits::TraceInspector;
+use crate::evm::TraceEvm;
 
-use super::TraceEvm;
-
-/// Inspector management implementation
-impl<'a, T, P, I> TraceEvm<'a, T, P, I>
+impl<DB, INSP> TraceEvm<CacheDB<DB>, INSP> 
 where
-    T: Transport + Clone,
-    P: Provider<T>,
-    I: 'a + GetInspector<InspectorDB<T, P>>,
+    DB: DatabaseRef,
+    INSP: TraceInspector<MainnetContext<CacheDB<DB>>>,
 {
-    /// Resets the inspector's internal state
-    /// 
-    /// This method should be called:
-    /// - Before processing a new transaction
-    /// - When switching between independent transactions in a batch
-    /// - Any time the inspector state needs to be cleared
-    /// 
-    /// # Type Parameters
-    /// * `I: Reset` - Inspector must implement the Reset trait
-    /// 
+    /// Retrieve the current output from the inspector
+    ///
+    /// Returns the accumulated trace data or analysis results from the inspector.
+    /// The exact type and content depends on the specific inspector implementation.
+    ///
     /// # Returns
-    /// * `&mut Self` - Returns self for method chaining
-    pub fn reset_inspector(&mut self) -> &mut Self
-    where
-        I: Reset,
-    {
-        self.0.context.external.reset();
-        self
+    /// The inspector's output data (traces, logs, analysis results, etc.)
+    pub fn get_inspector_output(&self) -> INSP::Output {
+        self.inspector.get_output()
     }
 
-    /// Retrieves the inspector's collected output
-    /// 
-    /// This method should be called:
-    /// - After transaction execution completes
-    /// - When analysis results are needed
-    /// - Before inspector state is reset
-    /// 
-    /// # Type Parameters
-    /// * `I: TraceOutput` - Inspector must implement the TraceOutput trait
-    /// 
-    /// # Returns
-    /// * `I::Output` - The inspector's collected execution data
-    pub fn get_inspector_output(&mut self) -> I::Output
-    where
-        I: TraceOutput,
-    {
-        self.0.context.external.get_output()
+    /// Reset the inspector to its initial state
+    ///
+    /// Clears any accumulated trace data, logs, or internal state in the inspector.
+    /// This should be called before processing a new transaction or batch to ensure
+    /// clean state isolation.
+    pub fn reset_inspector(&mut self) {
+        self.inspector.reset();
     }
 }
+
+impl<DB, INSP> TraceEvm<DB, INSP> 
+where
+    DB: Database,
+    INSP: Clone
+{
+    pub fn clone_inspector(&self) -> INSP {
+        self.inspector.clone()
+    }
+}
+
+

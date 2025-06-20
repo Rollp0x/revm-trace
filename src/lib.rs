@@ -36,19 +36,21 @@
 //!
 //! ```rust,no_run
 //! use revm_trace::{
-//!     TransactionProcessor,
-//!     evm::{create_evm_with_inspector},
-//!     types::{BlockEnv, SimulationTx, SimulationBatch},
-//!     inspectors::TxInspector,
+//!     traits::TransactionProcessor,
+//!     evm::builder::EvmBuilder,
+//!     types::{BlockParams, SimulationTx, SimulationBatch},
+//!     inspectors::tx_inspector::TxInspector,
 //! };
 //! use alloy::primitives::{address, U256, TxKind};
 //!
 //! # async fn example() -> anyhow::Result<()> {
 //! // Initialize EVM with transaction inspector
-//! let mut evm = create_evm_with_inspector(
-//!     "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
-//!     TxInspector::new(),
-//! ).await?;
+//! let mut evm = EvmBuilder::new(
+//!     "https://eth-mainnet.g.alchemy.com/v2/your-api-key"
+//! )
+//! .with_inspector(TxInspector::new())
+//! .build()
+//! .await?;
 //!
 //! // Create simulation transaction
 //! let tx = SimulationTx {
@@ -60,21 +62,24 @@
 //!
 //! // Create batch with single transaction
 //! let batch = SimulationBatch {
-//!     block_env: BlockEnv {
+//!     block_params: Some(BlockParams {
 //!         number: 21784863,
 //!         timestamp: 1700000000,
-//!     },
+//!     }),
 //!     transactions: vec![tx],
 //!     is_stateful: false,
 //! };
 //!
 //! // Execute transaction batch
-//! let results = evm.process_transactions(batch).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+//! let results = evm.process_transactions(batch)
+//!     .into_iter()
+//!     .map(|v| v.unwrap())
+//!     .collect::<Vec<_>>();
 //!
 //! // Process results
 //! for (execution_result, inspector_output) in results {
-//!     match execution_result.is_success() {
-//!         true => {
+//!     match execution_result {
+//!         revm::context_interface::result::ExecutionResult::Success { .. } => {
 //!             println!("Transaction succeeded!");
 //!             for transfer in inspector_output.asset_transfers {
 //!                 println!(
@@ -83,7 +88,7 @@
 //!                 );
 //!             }
 //!         }
-//!         false => {
+//!         _ => {
 //!             println!("Transaction failed!");
 //!             if let Some(error_trace) = inspector_output.error_trace_address {
 //!                 println!("Error occurred at call depth: {}", error_trace.len());
@@ -105,16 +110,16 @@
 //! - `utils`: Helper functions and utilities
 
 
-
 pub mod types;
 pub mod evm;
+pub mod errors;
 pub mod utils;
 pub mod traits;
 pub mod inspectors;
-pub mod errors;
 
-// Re-export only the essential types and functions
-pub use evm::builder::{create_evm, create_evm_with_inspector, create_evm_ws};
-pub use types::{BlockEnv, SimulationTx, SimulationBatch};
-pub use inspectors::TxInspector;
-pub use traits::TransactionProcessor;
+// Re-export core types for easier access
+pub use inspectors::tx_inspector::TxInspector;
+pub use evm::TraceEvm;
+pub use evm::builder::EvmBuilder;
+pub use types::{BlockEnv, BlockParams, SimulationTx, SimulationBatch};
+pub use traits::{TransactionProcessor, TraceInspector};

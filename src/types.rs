@@ -1,49 +1,113 @@
-//! Core types for EVM tracing and simulation
-//!
-//! This module defines the core data structures used throughout the tracing system:
-//! - Token configurations and transfers
-//! - Block and transaction environments
-//! - Call traces and execution results
-//! - Status tracking and error handling
-
-/// Re-exports from revm and alloy for user convenience
-pub use revm::interpreter::{CallScheme, CreateScheme, InstructionResult};
-pub use revm::primitives::{Output,ExecutionResult};
-pub use alloy::primitives::{Address, U256, Bytes, Log, TxKind};
-
-use serde::Serialize;
 use alloy::{
-    network::Ethereum,
-    providers::RootProvider,
-    transports::http::{Client, Http},
+    network::AnyNetwork,
+    providers::{
+        RootProvider, 
+        Identity,
+        fillers::{FillProvider, JoinFill, GasFiller, BlobGasFiller, NonceFiller, ChainIdFiller},
+    },
+    primitives::{U256, Address, Bytes, TxKind},
 };
-use revm::{
-    Evm,
-    db::{WrapDatabaseRef, AlloyDB, in_memory_db::CacheDB},
+use serde::Serialize;
+use revm::database::{AlloyDB,CacheDB,WrapDatabaseAsync};
+pub use revm::{
+    interpreter::{CallScheme, CreateScheme},
+    context::BlockEnv
 };
 
-// Provider types
-pub type HttpClient = Http<Client>;
-pub type HttpProvider = RootProvider<HttpClient>;
+// ========================= Provider Type Definitions =========================
+//
+// These type aliases create a layered provider system using alloy's filler pattern.
+// Fillers automatically populate transaction fields during execution.
 
-// Database types
-pub type AlloyDBType<T, P> = AlloyDB<T, Ethereum, P>;
-pub type CacheDBType<T, P> = CacheDB<AlloyDBType<T, P>>;
-pub type InspectorDB<T, P> = WrapDatabaseRef<CacheDBType<T, P>>;
+/// Base filler layer that handles nonce and chain ID management
+/// 
+/// Combines:
+/// - `NonceFiller`: Automatically sets transaction nonce from account state
+/// - `ChainIdFiller`: Automatically sets chain ID from provider
+type BaseFiller = JoinFill<NonceFiller, ChainIdFiller>;
 
-// EVM types
-pub type InspectorEvm<'a, T, P, I> = Evm<'a, I, InspectorDB<T, P>>;
+/// Blob filler layer that adds EIP-4844 blob gas management
+/// 
+/// Extends BaseFiller with:
+/// - `BlobGasFiller`: Handles blob gas pricing for blob transactions (EIP-4844)
+type BlobFiller = JoinFill<BlobGasFiller, BaseFiller>;
 
-/// Default native token (ETH) address - the zero address
+/// Gas filler layer that adds general gas management
+/// 
+/// Extends BlobFiller with:
+/// - `GasFiller`: Automatically estimates and sets gas limit and gas price
+type GasFillers = JoinFill<GasFiller, BlobFiller>;
+
+/// Complete filler stack with identity layer
+/// 
+/// Adds the identity filler on top of all gas management layers:
+/// - `Identity`: Pass-through filler that preserves existing values
+/// - Provides a complete transaction filling pipeline
+type AllFillers = JoinFill<Identity, GasFillers>;
+
+/// HTTP provider with automatic transaction filling
+/// 
+/// A fully configured HTTP provider that:
+/// - Uses `AnyNetwork` for maximum blockchain compatibility
+/// - Automatically fills transaction fields using `AllFillers`
+/// - Provides type-safe access to Ethereum JSON-RPC methods
+/// 
+/// This is the primary provider type for single-threaded operations.
+pub type HttpProvider = FillProvider<AllFillers, RootProvider<AnyNetwork>, AnyNetwork>;
+
+/// AlloyDB instance configured for HTTP provider access
+/// 
+/// Database adapter that:
+/// - Connects to blockchain state via `HttpProvider`
+/// - Uses `AnyNetwork` for broad compatibility
+/// - Provides efficient caching of blockchain queries
+/// - Implements the revm `Database` trait
+pub type AlloyDBType = AlloyDB<AnyNetwork, HttpProvider>;
+
+/// Cached database with async wrapper for single-threaded EVM
+/// 
+/// Multi-layered database setup:
+/// - `AlloyDBType`: Base blockchain access via HTTP
+/// - `WrapDatabaseAsync`: Async adapter for database operations  
+/// - `CacheDB`: In-memory cache layer for performance
+/// 
+/// This is the standard database configuration for most EVM operations.
+pub type CacheAlloyDB = CacheDB<WrapDatabaseAsync<AlloyDBType>>;
+
+// ========================= Multi-Threading Support =========================
+
+#[cfg(feature = "multi-threading")]
+use foundry_fork_db::backend::SharedBackend;
+
+/// Cached database with shared backend for multi-threaded EVM operations
+/// 
+/// Uses foundry-fork-db's `SharedBackend` for:
+/// - Thread-safe state management across multiple EVM instances
+/// - Advanced forking and snapshot capabilities
+/// - Concurrent transaction processing
+/// - State isolation between different execution contexts
+/// 
+/// This configuration is ideal for high-throughput scenarios and testing.
+#[cfg(feature = "multi-threading")]
+pub type SharedCacheDB = CacheDB<SharedBackend>;
+
 pub const NATIVE_TOKEN_ADDRESS: Address = Address::ZERO;
 
-/// Token configuration information
-/// 
-/// Stores essential information about a token including its symbol
-/// and decimal places for proper value formatting.
+/// Block Parameters for transaction simulation
+///
+/// Contains the necessary block context parameters required
+/// for accurate transaction simulation.
+#[derive(Debug, Clone, Serialize)]
+pub struct BlockParams {
+    /// Block number for the simulation context
+    pub number: u64,
+    /// Block timestamp in Unix format
+    pub timestamp: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TokenInfo {
-    pub name:String,
+    pub name: String,
     /// Token symbol (e.g., "ETH", "USDC")
     pub symbol: String,
     /// Number of decimal places for value formatting
@@ -52,22 +116,6 @@ pub struct TokenInfo {
     pub total_supply: U256,
 }
 
-/// Block environment for transaction simulation
-/// 
-/// Contains the necessary block context parameters required
-/// for accurate transaction simulation.
-#[derive(Debug, Clone, Serialize)]
-pub struct BlockEnv {
-    /// Block number for the simulation context
-    pub number: u64,
-    /// Block timestamp in Unix format
-    pub timestamp: u64,
-}
-
-/// Transaction parameters for simulation
-/// 
-/// Defines all necessary parameters to simulate a transaction
-/// in the EVM environment.
 #[derive(Debug, Clone)]
 pub struct SimulationTx {
     /// Address initiating the transaction
@@ -86,8 +134,8 @@ pub struct SimulationTx {
 /// configurable state handling between transactions.
 #[derive(Debug, Clone)]
 pub struct SimulationBatch {
-    /// Block environment for all transactions in the batch
-    pub block_env: BlockEnv,
+    /// Block parameters for all transactions in the batch
+    pub block_params: Option<BlockParams>,
     /// Sequence of transactions to execute
     pub transactions: Vec<SimulationTx>,
     /// Whether to preserve state between transactions
@@ -102,6 +150,7 @@ pub struct SimulationBatch {
     /// - Comparing different outcomes from same starting state
     pub is_stateful: bool,
 }
+
 
 /// Record of a token transfer event
 /// 
@@ -125,6 +174,7 @@ impl TokenTransfer {
         self.token == NATIVE_TOKEN_ADDRESS
     }
 }
+
 
 /// Type of contract interaction
 #[derive(Debug, Clone)]
@@ -186,6 +236,5 @@ pub struct CallTrace {
     /// Position in the call tree
     pub trace_address: Vec<usize>,
 }
-
 
 

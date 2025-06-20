@@ -1,74 +1,88 @@
-//! Built-in REVM inspectors with trait implementations
-//! 
-//! This module re-exports REVM's built-in inspectors and implements
-//! our custom traits (Reset and TraceOutput) for them to enable
-//! their use in our EVM implementation.
+//! REVM built-in inspector implementations
+//!
+//! This module provides trait implementations for REVM's built-in inspectors,
+//! making them compatible with our TraceInspector trait system.
+//!
+//! # Supported Inspectors
+//! - `NoOpInspector`: No-operation inspector for basic execution
+//! - `GasInspector`: Gas consumption tracking inspector
+//! - `TracerEip3155`: EIP-3155 compliant execution tracing
+//!
+//! Each inspector implements the `Reset` and `TraceOutput` traits to provide
+//! consistent behavior within the TraceEvm framework.
 
-pub use revm::inspectors::{
-    CustomPrintTracer,
-    GasInspector,
+pub use revm::inspector::{
     NoOpInspector,
-    TracerEip3155
+    inspectors::{GasInspector, TracerEip3155},
 };
-use crate::traits::{Reset, TraceOutput};
+use revm::{
+    handler::MainnetContext,
+    database::{DatabaseRef,CacheDB},
+};
+use crate::traits::{Reset, TraceOutput,TraceInspector};
 
-// NoOpInspector implementations
-/// Basic inspector that does nothing
+/// NoOpInspector implementations
+/// 
+/// Basic inspector that performs no operations during execution.
+/// Useful for simple transaction execution without tracing overhead.
 impl Reset for NoOpInspector {
     fn reset(&mut self) {}
 }
 
 impl TraceOutput for NoOpInspector {
     type Output = ();
+    
     fn get_output(&self) -> Self::Output { 
-        // Do nothing
-     }
+        // No-op inspector produces no output
+    }
 }
 
-// GasInspector implementations
-/// Inspector for gas tracking
-/// Note: Gas state is set in initialize_interp
+/// GasInspector implementations
+/// 
+/// Inspector for tracking gas consumption during execution.
+/// Gas state is automatically managed by the EVM in initialize_interp.
 impl Reset for GasInspector {
     fn reset(&mut self) {}
 }
 
 impl TraceOutput for GasInspector {
     type Output = ();
+    
     fn get_output(&self) -> Self::Output { 
-        // Do nothing
-     }
+        // Gas data is available through GasInspector's own methods
+    }
 }
 
-// CustomPrintTracer implementations
-/// Debug-focused inspector that prints execution details
-impl Reset for CustomPrintTracer {
-    fn reset(&mut self) {}
-}
-
-impl TraceOutput for CustomPrintTracer {
-    type Output = ();
-    fn get_output(&self) -> Self::Output { 
-        // Do nothing
-     }
-}
-
-// TracerEip3155 implementations
-/// EIP-3155 compliant tracer
+/// TracerEip3155 implementations
+/// 
+/// Inspector that provides EIP-3155 compliant execution tracing.
+/// Captures detailed step-by-step execution information.
 impl Reset for TracerEip3155 {
-    /// Clears the internal trace buffer
     fn reset(&mut self) {
         self.clear();
     }
 }
 
-/// Implementation to satisfy trait bounds
-/// 
-/// While TracerEip3155 has its own output mechanism through the
-/// underlying writer, we implement TraceOutput to maintain
-/// consistency with our trait system.
 impl TraceOutput for TracerEip3155 {
     type Output = ();
+    
     fn get_output(&self) -> Self::Output {
-        // Do nothing
+        // Trace data is available through TracerEip3155's own methods
     }
+}
+
+
+impl<DB> TraceInspector<MainnetContext<CacheDB<DB>>> for TracerEip3155
+where
+    DB: DatabaseRef,
+{
+    
+}
+
+
+impl<DB> TraceInspector<MainnetContext<CacheDB<DB>>> for NoOpInspector
+where
+    DB: DatabaseRef,
+{
+    
 }

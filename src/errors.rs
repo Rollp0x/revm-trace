@@ -39,7 +39,7 @@ pub enum InitError {
     
     /// Database setup or connection errors
     #[error("Database initialization failed: {0}")]
-    Database(String),
+    DatabaseError(String),
     
     /// WebSocket connection establishment errors
     #[error("WebSocket connection failed: {0}")]
@@ -48,6 +48,10 @@ pub enum InitError {
     /// Chain ID retrieval or validation errors
     #[error("Failed to get chain ID: {0}")]
     ChainId(String),
+
+    /// Errors fetching the chain ID from the provider
+    #[error("Failed to fetch chain ID: {0}")]
+    ChainIdFetchError(String),
 }
 
 /// Runtime execution errors
@@ -75,6 +79,14 @@ pub enum RuntimeError {
     /// Transaction explicitly reverted
     #[error("Reverted: {0}")]
     Revert(String),
+
+    /// Transaction reverted due to insufficient balance
+    #[error("Reverted due to insufficient balance: {0}")]
+    NoTokioRuntime(String),
+
+    /// Errors decoding data from the EVM
+    #[error("Failed to decode data: {0}")]
+    DecodeError(String),
 }
 
 #[derive(Debug, Error)]
@@ -111,6 +123,12 @@ pub enum BalanceError {
 /// including symbol and decimals queries, and general token calls.
 #[derive(Debug, Error)]
 pub enum TokenError {
+
+    /// General token-related errors
+    /// 
+    /// This variant wraps any error that does not fit into the specific token error categories.
+    #[error("Token error: {0}")]
+    AnyhowError(#[from] anyhow::Error),
 
     /// Failed to decode token name
     /// 

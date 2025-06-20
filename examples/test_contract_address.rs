@@ -4,17 +4,18 @@
 //! directly from ExecutionResult without using inspectors.
 
 use revm_trace::{
+    EvmBuilder,
     TransactionProcessor,
-    traits::Database,
-    types::TxKind,
-    create_evm, SimulationBatch, SimulationTx,
+    SimulationBatch, SimulationTx,
 };
 use anyhow::Result;
+use revm::database::Database;
+use revm::context::ContextTr;
 use alloy::{
-    primitives::{address, hex, Address, U256}, 
-    sol, sol_types::SolCall
+    primitives::{address, hex, Address, U256,TxKind}, 
+    sol
 };
-use revm::primitives::{ExecutionResult, Output};
+use revm::context_interface::result::{ExecutionResult, Output};
 
 mod common;
 use common::get_block_env;
@@ -41,13 +42,13 @@ async fn main() -> Result<()> {
     println!("Testing contract address extraction from ExecutionResult...");
     
     // Create basic EVM instance without inspector
-    let mut evm = create_evm(ETH_RPC_URL).await.unwrap();
+    let mut evm = EvmBuilder::default_inspector(ETH_RPC_URL.to_string()).build().await.unwrap();
     
     // Get block environment
-    let block_env = get_block_env(ETH_RPC_URL, None).await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await.unwrap();
     
     // Predict contract address
-    let current_account = evm.db_mut().basic(SENDER).unwrap().unwrap();
+    let current_account = evm.db().basic(SENDER).unwrap().unwrap();
     let nonce = current_account.nonce;
     let predicted_address = SENDER.create(nonce);
     println!("Predicted contract address: {}", predicted_address);
@@ -62,7 +63,7 @@ async fn main() -> Result<()> {
     
     // Execute deployment
     let results = evm.process_transactions(SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         is_stateful: false,
         transactions: vec![deploy_tx],
     });

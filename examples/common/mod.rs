@@ -1,5 +1,5 @@
 // examples/common/mod.rs
-use revm_trace::BlockEnv;
+use revm_trace::types::BlockParams;
 use alloy::{
     eips::BlockNumberOrTag,
     providers::{ProviderBuilder,Provider},
@@ -14,28 +14,28 @@ use anyhow::Result;
 /// 
 /// # Returns
 /// BlockEnv containing block number and timestamp
-pub async fn get_block_env(http_url: &str, block_number: Option<u64>) -> Result<BlockEnv> {
+pub async fn get_block_env(http_url: &str, block_number: Option<u64>) -> Result<BlockParams> {
     let provider = ProviderBuilder::new()
-        .on_http(http_url.parse()?);
+        .connect_http(http_url.parse()?);
     
     if let Some(block_number) = block_number {
         let block_info = provider
-            .get_block_by_number(BlockNumberOrTag::Number(block_number), false)
+            .get_block_by_number(BlockNumberOrTag::Number(block_number))
             .await?
             .ok_or_else(|| anyhow::anyhow!("Block not found"))?;
-        Ok(BlockEnv { 
-            number: block_number, 
-            timestamp: block_info.header.timestamp 
+        Ok(BlockParams {
+            number: block_number,
+            timestamp: block_info.header.timestamp
         })
     } else {
         let latest_block = provider.get_block_number().await?;
         let block_info = provider
-            .get_block_by_number(BlockNumberOrTag::Number(latest_block), false)
+            .get_block_by_number(BlockNumberOrTag::Number(latest_block))
             .await?
             .ok_or_else(|| anyhow::anyhow!("Block not found"))?;
-        Ok(BlockEnv { 
-            number: latest_block, 
-            timestamp: block_info.header.timestamp 
+        Ok(BlockParams {
+            number: latest_block,
+            timestamp: block_info.header.timestamp
         })
     }
 }

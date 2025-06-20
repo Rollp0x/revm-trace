@@ -12,25 +12,33 @@
 //! - Self-destructs and balance transfers
 //! - ERC20 transfer event parsing
 
-use crate::TxInspector;
+use crate::{TxInspector,TraceInspector};
 use revm::{
-    Database, 
-    EvmContext, 
+    context::ContextTr,
     Inspector,
+    database::{DatabaseRef,CacheDB},
     interpreter::{
         CallInputs, 
         CallOutcome, 
         CreateInputs, 
         CreateOutcome,
         CallScheme,
-        Interpreter, 
+        Interpreter,
+        InterpreterTypes,
     },
+    handler::MainnetContext,
+
 };
 use crate::utils::erc20_utils::parse_transfer_log;
 use crate::types::*;
 use alloy::primitives::{Address, Bytes, Log, U256};
 
-impl<DB: Database> Inspector<DB> for TxInspector {
+impl<CTX, INTR> Inspector<CTX, INTR> for TxInspector 
+where 
+    CTX: ContextTr,
+    INTR: InterpreterTypes,
+{
+
     /// Handles contract calls (both regular and delegate)
     /// 
     /// # Processing Steps
@@ -44,7 +52,7 @@ impl<DB: Database> Inspector<DB> for TxInspector {
     /// - Value transfers: Only tracked for regular calls
     fn call(
         &mut self,
-        _context: &mut EvmContext<DB>,
+        context: &mut CTX,
         inputs: &mut CallInputs,
     ) -> Option<CallOutcome> {
         let from = self.address_stack.last().copied().unwrap_or(inputs.caller);
@@ -83,7 +91,7 @@ impl<DB: Database> Inspector<DB> for TxInspector {
             from,
             to,
             value: inputs.call_value(),
-            input: inputs.input.clone(),
+            input: inputs.input.bytes(context),
             call_scheme: Some(inputs.scheme),
             create_scheme: None,
             gas_used: U256::ZERO,
@@ -111,7 +119,7 @@ impl<DB: Database> Inspector<DB> for TxInspector {
     /// Contract address is initially unknown and updated in create_end
     fn create(
         &mut self,
-        _context: &mut EvmContext<DB>,
+        _context: &mut CTX,
         inputs: &mut CreateInputs,
     ) -> Option<CreateOutcome> {
         let from = inputs.caller;
@@ -168,14 +176,13 @@ impl<DB: Database> Inspector<DB> for TxInspector {
     /// - Errors: Captured and formatted appropriately
     fn call_end(
         &mut self,
-        _context: &mut EvmContext<DB>,
+        _context: &mut CTX,
         _inputs: &CallInputs,
-        outcome: CallOutcome,
-    ) -> CallOutcome {
+        outcome: &mut CallOutcome,
+    )  {
+        println!("✅ TxInspector::call_end() called! Result: {:?}, Gas Spent: {}", outcome.result.result, outcome.result.gas.spent());
         self.handle_end(outcome.result.result, outcome.result.gas.spent(), outcome.result.output.clone());
         self.address_stack.pop();
-        
-        outcome
     }
 
     /// Finalizes contract creation
@@ -190,10 +197,11 @@ impl<DB: Database> Inspector<DB> for TxInspector {
     /// all pending references are updated
     fn create_end(
         &mut self,
-        _context: &mut EvmContext<DB>,
+        _context: &mut CTX,
         _inputs: &CreateInputs,
-        outcome: CreateOutcome,
-    ) -> CreateOutcome {
+        outcome: &mut CreateOutcome,
+    ) {
+        println!("✅ TxInspector::create_end() called! Result: {:?}, Gas Spent: {}", outcome.result.result, outcome.result.gas.spent());
         if let Some(address) = outcome.address {
             // Get current trace index without removing it
             // This will be popped in handle_end
@@ -211,7 +219,6 @@ impl<DB: Database> Inspector<DB> for TxInspector {
         // handle_end will pop the call_stack
         self.handle_end(outcome.result.result, outcome.result.gas.spent(), outcome.result.output.clone());
         self.address_stack.pop();
-        outcome
     }
 
     /// Processes emitted event logs
@@ -224,7 +231,13 @@ impl<DB: Database> Inspector<DB> for TxInspector {
     /// # Note
     /// Special attention to ERC20 Transfer events for
     /// accurate token transfer tracking
-    fn log(&mut self, _interp: &mut Interpreter, _context: &mut EvmContext<DB>, log: &Log) {
+    fn log(
+        &mut self, 
+        _interp: &mut Interpreter<INTR>, 
+        _context: &mut CTX, 
+        log: Log
+    ) {
+        println!("📜 TxInspector::log() called! Log: {:?}", log);
         self.logs.push(log.clone());
         
         if let Some((from, to, amount)) = parse_transfer_log(log.topics(), &log.data.data) {
@@ -256,4 +269,12 @@ impl<DB: Database> Inspector<DB> for TxInspector {
             });
         }
     }
+}
+
+
+impl<DB> TraceInspector<MainnetContext<CacheDB<DB>>> for TxInspector
+where
+    DB: DatabaseRef,
+{
+    
 }

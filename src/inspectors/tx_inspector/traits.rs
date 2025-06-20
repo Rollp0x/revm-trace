@@ -17,9 +17,8 @@
 //! - Provide standardized output format
 //! - Integrate with the broader tracing system
 use crate::traits::{Reset, TraceOutput};
-use crate::TxInspector;
 use crate::inspectors::tx_inspector::TxTraceOutput;
-
+use crate::inspectors::tx_inspector::TxInspector;
 
 impl Reset for TxInspector {
     /// Resets all internal state for processing a new transaction

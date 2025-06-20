@@ -10,11 +10,13 @@
 //! call hierarchy, with special handling for error cases to identify
 //! the exact point of failure in complex transactions.
 
-use crate::TxInspector;
+use crate::inspectors::tx_inspector::TxInspector;
 use revm::interpreter::{
     InstructionResult,
     SuccessOrHalt,
+    
 };
+use revm::context_interface::result::HaltReason;
 
 use crate::utils::error_utils::parse_custom_error;
 use crate::types::*;
@@ -102,7 +104,7 @@ impl TxInspector {
             trace.output = output.clone();
 
             // Convert execution result to call status
-            let status = match SuccessOrHalt::from(result) {
+            let status = match SuccessOrHalt::<HaltReason>::from(result) {
                 SuccessOrHalt::Success(_) => CallStatus::Success,
                 SuccessOrHalt::Revert => {
                     if let Some(error_msg) = parse_custom_error(&output) {

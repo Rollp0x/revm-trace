@@ -24,45 +24,46 @@
 //! - Old blocks: Requires archive node access
 
 use revm_trace::{
+    EvmBuilder,
     TransactionProcessor,
-    traits::Database,
-    types::TxKind,
-    create_evm_ws, create_evm_with_inspector, 
-    utils::error_utils::parse_custom_error, BlockEnv, SimulationBatch, SimulationTx, TxInspector
+    utils::error_utils::parse_custom_error, 
+    BlockParams, SimulationBatch, SimulationTx, TxInspector
 };
+use revm::context::ContextTr;
+use revm::database::Database;
 
 use alloy::{
     eips::BlockNumberOrTag, 
-    primitives::{address, hex, Address, U256}, 
+    primitives::{address, hex, Address, U256,TxKind}, 
     providers::{Provider, ProviderBuilder, WsConnect}, 
     sol, sol_types::SolCall
 };
 
 /// Helper function to get block environment from HTTP RPC
-async fn get_block_env(http_url: &str,block_number:Option<u64>) -> BlockEnv {
+async fn get_block_env(http_url: &str,block_number:Option<u64>) -> BlockParams {
     let provider = ProviderBuilder::new()
-        .on_http(http_url.parse().unwrap());
+        .connect_http(http_url.parse().unwrap());
     if let Some(block_number) = block_number {
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number),false).await.unwrap().unwrap();
-        BlockEnv { number: block_number, timestamp: block_info.header.timestamp }
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number)).await.unwrap().unwrap();
+        BlockParams { number: block_number, timestamp: block_info.header.timestamp }
     } else {
         let latest_block = provider.get_block_number().await.unwrap();
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block),false).await.unwrap().unwrap();
-        BlockEnv { number: latest_block, timestamp: block_info.header.timestamp }
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block)).await.unwrap().unwrap();
+        BlockParams { number: latest_block, timestamp: block_info.header.timestamp }
     }
 }
 
 /// Helper function to get block environment from WebSocket RPC
-async fn get_block_env_ws(ws_url: &str, block_number: Option<u64>) -> BlockEnv {
+async fn get_block_env_ws(ws_url: &str, block_number: Option<u64>) -> BlockParams {
     let provider = ProviderBuilder::new()
-        .on_ws(WsConnect::new(ws_url)).await.unwrap();
+        .connect_ws(WsConnect::new(ws_url)).await.unwrap();
     if let Some(block_number) = block_number {
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number),false).await.unwrap().unwrap();
-        BlockEnv { number: block_number, timestamp: block_info.header.timestamp }
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number)).await.unwrap().unwrap();
+        BlockParams { number: block_number, timestamp: block_info.header.timestamp }
     } else {
         let latest_block = provider.get_block_number().await.unwrap();
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block),false).await.unwrap().unwrap();
-        BlockEnv { number: latest_block, timestamp: block_info.header.timestamp }
+        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block)).await.unwrap().unwrap();
+        BlockParams { number: latest_block, timestamp: block_info.header.timestamp }
     }
 }
 
@@ -115,7 +116,7 @@ sol! {
         }
     }
 }
-const ETH_RPC_URL: &str = "https://rpc.ankr.com/eth";
+const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 const SENDER: Address = address!("3ee18B2214AFF97000D974cf647E7C347E8fa585");
 const CAFE_ADDRESS: Address = address!("cafe00000000000000000000000000000000face");
 const DEAD_ADDRESS: Address = address!("deAD00000000000000000000000000000000dEAd");
@@ -132,11 +133,15 @@ const REVERT_DEMO_BYTECODE:&str = "0x608060405234801561001057600080fd5b506101098
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_with_try_catch() {
     let inspector = TxInspector::new();
-    let mut evm: revm_trace::evm::TraceEvm<'_, alloy::transports::http::Http<alloy::transports::http::Client>, alloy::providers::RootProvider<alloy::transports::http::Http<alloy::transports::http::Client>>, TxInspector> = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await;
+    let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await;
 
     // get current nonce to calculate contract address
-    let current_account = evm.db_mut().basic(SENDER).unwrap().unwrap();
+    let current_account = evm.db().basic(SENDER).unwrap().unwrap();
     let nonce = current_account.nonce;
     let revert_demo_address = SENDER.create(nonce);
     let owner_demo_address = SENDER.create(nonce + 1);
@@ -179,7 +184,7 @@ async fn test_nested_revert_with_try_catch() {
     
     // execute all transactions
     let results = evm.process_transactions(SimulationBatch {
-        block_env,
+        block_params:Some(block_params),
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -235,11 +240,16 @@ async fn test_nested_revert_with_try_catch() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_with_multicall() {  
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await;
+     let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await;
+
 
     // get current nonce to calculate contract address
-    let current_account = evm.db_mut().basic(SENDER).unwrap().unwrap();
+    let current_account = evm.db().basic(SENDER).unwrap().unwrap();
 
     let nonce = current_account.nonce;
     let revert_demo_address = SENDER.create(nonce);
@@ -283,7 +293,7 @@ async fn test_nested_revert_with_multicall() {
 
     // execute all transactions
     let results = evm.process_transactions(SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -333,11 +343,16 @@ async fn test_nested_revert_with_multicall() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_without_multicall() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await;
+    let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await;
+
 
     // get current nonce to calculate contract address
-    let current_account = evm.db_mut().basic(SENDER).unwrap().unwrap();
+    let current_account = evm.db().basic(SENDER).unwrap().unwrap();
     let nonce = current_account.nonce;
     let revert_demo_address = SENDER.create(nonce);
     let owner_demo_address = SENDER.create(nonce + 1);
@@ -380,7 +395,7 @@ async fn test_nested_revert_without_multicall() {
 
     // execute all transactions
     let results = evm.process_transactions(SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -443,11 +458,16 @@ async fn test_nested_revert_without_multicall() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_multicall_with_error() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await;
+     let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await;
+
 
     // get current nonce to calculate contract address
-    let current_account = evm.db_mut().basic(SENDER).unwrap().unwrap();
+    let current_account = evm.db().basic(SENDER).unwrap().unwrap();
     let nonce = current_account.nonce;
     let expected_contract_address = SENDER.create(nonce);
 
@@ -481,7 +501,7 @@ async fn test_multicall_with_error() {
 
     // execute batch transactions
     let results = evm.process_transactions(SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -516,11 +536,16 @@ async fn test_multicall_with_error() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_create_contract() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await;
+     let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await;
+
 
     let sender = address!("b20a608c624Ca5003905aA834De7156C68b2E1d0");
-    let current_account = evm.db_mut().basic(sender).unwrap().unwrap();
+    let current_account = evm.db().basic(sender).unwrap().unwrap();
     let nonce = current_account.nonce;
     let expected_contract_address = sender.create(nonce);
 
@@ -533,7 +558,7 @@ async fn test_create_contract() {
         data: data.into(),
     };
     let results = evm.process_transactions(SimulationBatch {
-        block_env: block_env.clone(),
+        block_params: Some(block_params),
         is_stateful: false,
         transactions: vec![tx0],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -549,11 +574,16 @@ async fn test_create_contract() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_stateful_and_stateless_call_trace() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await;
+     let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await;
+
 
     let sender = address!("b20a608c624Ca5003905aA834De7156C68b2E1d0");
-    let current_account = evm.db_mut().basic(sender).unwrap().unwrap();
+    let current_account = evm.db().basic(sender).unwrap().unwrap();
     let nonce = current_account.nonce;
     let expected_contract_address = sender.create(nonce);
     let next_contract_address = sender.create(nonce + 1);
@@ -574,7 +604,7 @@ async fn test_stateful_and_stateless_call_trace() {
     };
 
     let results = evm.process_transactions(SimulationBatch {
-        block_env: block_env.clone(),
+        block_params: Some(block_params.clone()),
         is_stateful: false,
         transactions: vec![tx0.clone(), tx1.clone()],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -591,7 +621,7 @@ async fn test_stateful_and_stateless_call_trace() {
     assert_eq!(deploy_call_tx1.to, expected_contract_address, "Contract address should match");
 
     let results = evm.process_transactions(SimulationBatch {
-        block_env: block_env.clone(),
+        block_params: Some(block_params),
         is_stateful: true,
         transactions: vec![tx0.clone(), tx1.clone()],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -613,13 +643,18 @@ async fn test_stateful_and_stateless_call_trace() {
 async fn test_wth_ws() {
     let ws_rpc_url = std::env::var("WS_RPC_URL").unwrap();
     let inspector = TxInspector::new();
-    let mut evm = create_evm_ws(&ws_rpc_url,inspector).await.unwrap();
-    let block_env = get_block_env_ws(&ws_rpc_url, None).await;
+     let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await;
+
     
 
     // check initial state
-    let cafe_balance_before = evm.db_mut().basic(CAFE_ADDRESS).unwrap().unwrap().balance;
-    let dead_balance_before = evm.db_mut().basic(DEAD_ADDRESS).unwrap().unwrap().balance;
+    let cafe_balance_before = evm.db().basic(CAFE_ADDRESS).unwrap().unwrap().balance;
+    let dead_balance_before = evm.db().basic(DEAD_ADDRESS).unwrap().unwrap().balance;
     assert_eq!(cafe_balance_before, U256::ZERO, "CAFE initial balance should be 0");
     assert_eq!(dead_balance_before, U256::ZERO, "DEAD initial balance should be 0");
 
@@ -628,7 +663,7 @@ async fn test_wth_ws() {
     let transfer2_amount = U256::from(60000000000000000u64);  // 0.06 ETH
 
     let txs = SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         is_stateful: true,
         transactions: vec![
             SimulationTx {
@@ -668,8 +703,8 @@ async fn test_wth_ws() {
     assert!(transfer2.is_native_token());
 
     // verify final state
-    let cafe_balance_after = evm.db_mut().basic(CAFE_ADDRESS).unwrap().unwrap().balance;
-    let dead_balance_after = evm.db_mut().basic(DEAD_ADDRESS).unwrap().unwrap().balance;
+    let cafe_balance_after = evm.db().basic(CAFE_ADDRESS).unwrap().unwrap().balance;
+    let dead_balance_after = evm.db().basic(DEAD_ADDRESS).unwrap().unwrap().balance;
     
     // calculate expected balance
     let expected_cafe_balance = transfer1_amount - transfer2_amount;

@@ -1,23 +1,28 @@
 use revm_trace::{
+    EvmBuilder,
     TransactionProcessor,
-    evm::create_evm_with_inspector,
-    types::{BlockEnv, SimulationTx, SimulationBatch},
-    inspectors::TxInspector,
+    types::{BlockParams, SimulationTx, SimulationBatch},
+    TxInspector
 };
 use alloy::primitives::{address, U256, TxKind};
+
+const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 // Basic example showing core functionality
 #[tokio::test(flavor = "multi_thread")]
 async fn test_basic_usage() -> anyhow::Result<()> {
     // Initialize EVM with transaction inspector
-    let mut evm = create_evm_with_inspector(
-        "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
-        TxInspector::new(),
-    ).await?;
-
+    let inspector = TxInspector::new();
+    let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    // evm.show_inspector();
+    let sender = address!("C255fC198eEdAC7AF8aF0f6e0ca781794B094A61");
     // Create simulation transaction
     let tx = SimulationTx {
-        caller: address!("C255fC198eEdAC7AF8aF0f6e0ca781794B094A61"),
+        caller: sender,
         transact_to: TxKind::Call(address!("d878229c9c3575F224784DE610911B5607a3ad15")),
         value: U256::from(120000000000000000u64), //  0.12 ETH
         data: vec![].into(),
@@ -25,10 +30,10 @@ async fn test_basic_usage() -> anyhow::Result<()> {
 
     // Create batch with single transaction
     let batch = SimulationBatch {
-        block_env: BlockEnv {
+        block_params: Some(BlockParams {
             number: 21784863,
             timestamp: 1700000000,
-        },
+        }),
         transactions: vec![tx],
         is_stateful: false,
     };

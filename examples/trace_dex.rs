@@ -11,14 +11,15 @@
 
 use std::collections::HashMap;
 use revm_trace::{
+    EvmBuilder,
     TransactionProcessor,
-    types::{TxKind,TokenInfo},
+    types::{TokenInfo},
     utils::erc20_utils::get_token_infos,
-    create_evm_with_inspector, SimulationBatch, SimulationTx, TxInspector
+    SimulationBatch, SimulationTx, TxInspector
 };
 use anyhow::Result;
 use alloy::{
-    primitives::{address, Address, U256},  
+    primitives::{address, Address, U256,TxKind},  
     sol, sol_types::SolCall
 };
 use prettytable::{format, Cell, Row, Table};
@@ -73,16 +74,18 @@ fn format_amount(amount: U256, decimals: u8) -> String {
 }
 
 
-const ETH_RPC_URL: &str = "https://rpc.ankr.com/eth";
+const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     // Create EVM instance with transaction tracing
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    println!("{}", "✅ EVM instance created successfully\n".green());
-    // Get block environment for simulation
-    let block_env = get_block_env(ETH_RPC_URL, None).await.unwrap();
+    let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await.unwrap();
 
     // Configure swap parameters
     let caller = address!("57757E3D981446D585Af0D9Ae4d7DF6D64647806");
@@ -120,7 +123,7 @@ async fn main() -> Result<()> {
 
     // Process transaction and get results
     let result = evm.process_transactions(SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         transactions: vec![tx],
         is_stateful: true,
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0].clone();

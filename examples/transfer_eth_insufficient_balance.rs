@@ -18,12 +18,12 @@
 //! so there will be no execution trace or inspector output.
 
 use revm_trace::{
-    types::TxKind,
+    EvmBuilder,
     TransactionProcessor,
-    create_evm_with_inspector, SimulationBatch, SimulationTx, TxInspector
+    SimulationBatch, SimulationTx, TxInspector
 };
 use anyhow::Result;
-use alloy::primitives::{address, U256};
+use alloy::primitives::{address, U256,TxKind};
 use colored::*;
 mod common;
 use common::get_block_env;
@@ -34,13 +34,13 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 async fn main() -> Result<()> {
     println!("Starting transfer ETH failed test...");
     
-    // Initialize EVM with transaction inspector
-    // Note: Inspector won't produce output as transaction fails in validation
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL, inspector).await.unwrap();
-    
-    // Get latest block environment for simulation
-    let block_env = get_block_env(ETH_RPC_URL, None).await.unwrap();
+    let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await.unwrap();
     println!("{}", "✅ EVM instance created successfully\n".green());
 
     // Configure transfer parameters
@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
     // Create transaction batch
     // Note: is_stateful doesn't matter here as transaction will fail validation
     let txs = SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         transactions: vec![tx],
         is_stateful: true,
     };

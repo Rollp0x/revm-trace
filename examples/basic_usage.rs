@@ -8,14 +8,13 @@
 //! - Display transfer information with proper token details
 
 use revm_trace::{
-    TransactionProcessor,
-    types::TxKind,
+    TransactionProcessor,EvmBuilder,
     utils::erc20_utils::get_token_infos,
-    create_evm_with_inspector, SimulationBatch, SimulationTx, TxInspector
+    SimulationBatch, SimulationTx, TxInspector
 };
 use anyhow::Result;
 use alloy::{
-    primitives::{address, utils::format_units, Address, U256}, 
+    primitives::{address, utils::format_units, Address, U256,TxKind}, 
     sol, sol_types::SolCall
 };
 mod common;
@@ -40,13 +39,18 @@ fn encode_erc20_transfer(to: Address, amount: U256) -> Vec<u8> {
     ERC20::transferCall { to, amount }.abi_encode()
 }
 
-const ETH_RPC_URL: &str = "https://rpc.ankr.com/eth";
+
+const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_inspector(ETH_RPC_URL,inspector).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await.unwrap();
+    let builder = EvmBuilder::new(
+        ETH_RPC_URL.to_string(),
+        inspector
+    );
+    let mut evm = builder.build().await.unwrap();
+    let block_params = get_block_env(ETH_RPC_URL, None).await.unwrap();
 
     // USDC proxy contract address
     let usdc = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
@@ -64,7 +68,7 @@ async fn main() -> Result<()> {
     };
 
     let result = &evm.process_transactions(SimulationBatch {
-        block_env,
+        block_params: Some(block_params),
         is_stateful: false,
         transactions: vec![tx],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0];

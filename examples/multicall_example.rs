@@ -4,15 +4,20 @@
 //! to batch multiple contract calls efficiently.
 
 use revm_trace::{
-    create_evm,
-    utils::multicall_utils::{MulticallManager, BatchCall, create_balance_batch_calls},
-    types::BlockEnv,
+    EvmBuilder,
+    utils::multicall_utils::{MulticallManager,MulticallCall},
 };
 use anyhow::Result;
-use alloy::primitives::{address, Address,U256};
+use alloy::{ primitives::{address,U256}};
+use alloy::sol;
+use alloy::sol_types::SolCall;
+
+sol! {
+    function balanceOf(address owner) public returns (uint256);
+}
+
 
 mod common;
-use common::get_block_env;
 
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
@@ -21,8 +26,8 @@ async fn main() -> Result<()> {
     println!("Testing Multicall utilities...");
     
     // Create EVM instance
-    let mut evm = create_evm(ETH_RPC_URL).await.unwrap();
-    let block_env = get_block_env(ETH_RPC_URL, None).await.unwrap();
+    let mut evm = EvmBuilder::default_inspector(ETH_RPC_URL.to_string()).build().await.unwrap();
+    let block_params = None;
     
     // Create multicall manager
     let manager = MulticallManager::new();
@@ -35,13 +40,26 @@ async fn main() -> Result<()> {
     
     let holders = vec![
         address!("28C6c06298d514Db089934071355E5743bf21d60"), // Binance hot wallet
-        address!("21a31Ee1afC51d94C2eFcCAa2092aD1028285549"), // Binance cold wallet
+        address!("21a31Ee1afC51d94C2eFcCAa2092aD1028285549"), // Binance cold wallet 
     ];
     
     println!("Creating batch calls for {} tokens and {} holders...", tokens.len(), holders.len());
     
     // Create batch calls for balance queries
-    let batch_calls = create_balance_batch_calls(&tokens, &holders);
+    let mut batch_calls  = vec![];
+   for token in &tokens {
+        for holder in &holders {
+            // Create a multicall for balanceOf function
+            let data = balanceOfCall {
+                owner: *holder
+            }.abi_encode().into();
+            let call = MulticallCall {
+                target: *token,
+                callData:data,
+            };
+            batch_calls.push(call);
+        }
+   }
     println!("Created {} batch calls", batch_calls.len());
     
     // Execute batch calls
@@ -49,8 +67,8 @@ async fn main() -> Result<()> {
     let results = manager.deploy_and_batch_call(
         &mut evm,
         batch_calls,
-        block_env,
-        false, // Allow individual failures
+        true, // require success
+        block_params,
     )?;
     
     println!("✅ Batch execution completed!");
@@ -62,9 +80,9 @@ async fn main() -> Result<()> {
         for (holder_idx, &holder) in holders.iter().enumerate() {
             let result = &results[index];
             
-            if result.success && result.return_data.len() == 32 {
+            if result.success && result.returnData.len() == 32 {
                 // Parse the 32-byte return data as U256
-                let balance = U256::from_be_slice(&result.return_data);
+                let balance = U256::from_be_slice(&result.returnData[0..32]);
                 println!(
                     "Token {} ({}) -> Holder {} ({}): Balance: {} (Success: {})",
                     token_idx + 1,
@@ -82,7 +100,7 @@ async fn main() -> Result<()> {
                     holder_idx + 1,
                     holder,
                     result.success,
-                    result.return_data.len()
+                    result.returnData.len()
                 );
             }
             index += 1;
