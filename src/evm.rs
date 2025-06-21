@@ -12,7 +12,7 @@
 //! ## Usage Examples
 //!
 //! ```rust,no_run
-//! use revm_trace_multi_thread::evm::{TraceEvm, builder::EvmBuilder};
+//! use revm_trace::evm::{TraceEvm, builder::EvmBuilder};
 //! use revm::inspector::NoOpInspector;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -35,7 +35,7 @@
 //! # }
 //! ```
 
-use crate::types::CacheAlloyDB;
+
 use revm::database::{CacheDB,DatabaseRef};
 pub use revm::{
     inspector::{NoOpInspector, Inspector},
@@ -45,7 +45,7 @@ pub use revm::{
     database::Database
 };
 use std::ops::{Deref, DerefMut};
-
+use crate::ResetDB;
 // Sub-modules for EVM functionality
 pub mod builder;
 pub mod processor;
@@ -66,7 +66,7 @@ pub mod inspector;
 /// # Examples
 ///
 /// ```rust,no_run
-/// use revm_trace_multi_thread::evm::{TraceEvm, builder::EvmBuilder};
+/// use revm_trace::evm::{TraceEvm, builder::EvmBuilder};
 /// use revm::inspector::NoOpInspector;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
@@ -106,13 +106,23 @@ where
     /// A new `TraceEvm` wrapper instance
     ///
     /// # Example
-    /// ```rust,no_run
-    /// use revm_trace_multi_thread::evm::TraceEvm;
-    /// use revm::{Context, inspector::NoOpInspector};
+    /// ```no_run
+    /// use revm_trace::{TraceEvm, EvmBuilder, TxInspector};
+    /// use revm::{Context, MainnetEvm, inspector::NoOpInspector};
+    /// use revm::handler::MainnetContext;
     ///
-    /// let ctx = Context::mainnet();
-    /// let evm = ctx.build_mainnet_with_inspector(NoOpInspector);
-    /// let trace_evm = TraceEvm::new(evm);
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// // Method 1: Using EvmBuilder (recommended)
+    /// let inspector = TxInspector::new();
+    /// let builder = EvmBuilder::new("https://eth.llamarpc.com".to_string(), inspector);
+    /// let trace_evm = builder.build().await?; // Already returns TraceEvm
+    ///
+    /// // Method 2: Wrapping an existing MainnetEvm
+    /// // let ctx = Context::build_mainnet().with_db(...);
+    /// // let evm = ctx.build_mainnet_with_inspector(NoOpInspector);
+    /// // let trace_evm = TraceEvm::new(evm);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn new(evm: MainnetEvm<MainnetContext<DB>, INSP>) -> Self {
         Self(evm)
@@ -147,80 +157,6 @@ where
     }
 }
 
-// ========================= Type Aliases for Common Configurations =========================
-
-/// Default TraceEvm configuration with CacheAlloyDB and NoOpInspector
-///
-/// This is the simplest configuration for basic EVM execution without custom tracing.
-/// Uses:
-/// - `CacheAlloyDB`: Standard HTTP-based database with caching
-/// - `NoOpInspector`: Minimal inspector with no tracing overhead
-///
-/// # Example
-/// ```rust,no_run
-/// use revm_trace_multi_thread::evm::DefaultTraceEvm;
-/// 
-/// // This type is equivalent to:
-/// // TraceEvm<CacheAlloyDB, NoOpInspector>
-/// ```
-pub type DefaultTraceEvm = TraceEvm<CacheAlloyDB, NoOpInspector>;
-
-/// Generic TraceEvm with CacheAlloyDB and configurable inspector
-///
-/// This type alias provides a convenient way to specify only the inspector type
-/// while using the standard `CacheAlloyDB` database backend.
-///
-/// # Type Parameters
-/// - `I`: Inspector type (defaults to `NoOpInspector`)
-///
-/// # Examples
-/// ```rust,no_run
-/// use revm_trace_multi_thread::evm::AlloyTraceEvm;
-/// use revm::inspector::NoOpInspector;
-/// use revm_trace_multi_thread::inspectors::TxInspector;
-///
-/// // With default NoOpInspector
-/// type SimpleEvm = AlloyTraceEvm;
-///
-/// // With custom inspector
-/// type TracingEvm = AlloyTraceEvm<TxInspector>;
-/// ```
-pub type AlloyTraceEvm<I = NoOpInspector> = TraceEvm<CacheAlloyDB, I>;
-
-
-
-// ========================= Multi-Threading Support =========================
-
-#[cfg(feature = "multi-threading")]
-pub use crate::types::SharedCacheDB;
-
-/// Multi-threaded TraceEvm with SharedBackend
-///
-/// This type alias provides EVM instances optimized for concurrent operations using
-/// foundry-fork-db's `SharedBackend`. Ideal for high-throughput scenarios and testing.
-///
-/// # Type Parameters
-/// - `I`: Inspector type (defaults to `NoOpInspector`)
-///
-/// # Features Required
-/// - `multi-threading`: This type is only available when the feature is enabled
-///
-/// # Benefits
-/// - Thread-safe state management
-/// - Advanced forking and snapshot capabilities
-/// - Concurrent transaction processing
-/// - State isolation between execution contexts
-///
-/// # Examples
-/// ```rust,no_run
-/// #[cfg(feature = "multi-threading")]
-/// use revm_trace_multi_thread::evm::SharedTraceEvm;
-/// 
-/// #[cfg(feature = "multi-threading")]
-/// type ConcurrentEvm = SharedTraceEvm<MyCustomInspector>;
-/// ```
-#[cfg(feature = "multi-threading")]
-pub type SharedTraceEvm<I = NoOpInspector> = TraceEvm<SharedCacheDB, I>;
 
 
 // ========================= Database Management =========================
@@ -229,7 +165,7 @@ pub type SharedTraceEvm<I = NoOpInspector> = TraceEvm<SharedCacheDB, I>;
 ///
 /// Provides database cache management utilities specifically for EVM instances
 /// that use `CacheDB` as their database layer.
-impl<DB, INSP> TraceEvm<CacheDB<DB>, INSP> 
+impl<DB, INSP> ResetDB for TraceEvm<CacheDB<DB>, INSP> 
 where
     DB: DatabaseRef,
 {
@@ -254,12 +190,12 @@ where
     ///
     /// # Example
     /// ```rust,no_run
-    /// # use revm_trace_multi_thread::evm::AlloyTraceEvm;
+    /// # use revm_trace::evm::AlloyTraceEvm;
     /// # let mut evm: AlloyTraceEvm = todo!();
     /// // Clear cache before processing a new batch of transactions
     /// evm.reset_db();
     /// ```
-    pub fn reset_db(&mut self){
+    fn reset_db(&mut self){
         let cached_db = &mut self.0.ctx.db().cache;
         cached_db.accounts.clear();
         cached_db.contracts.clear();

@@ -20,9 +20,8 @@ use revm::{
 };
 use crate::{
     evm::TraceEvm,
-    types::BlockParams,
+    types::BlockEnv,
     errors::{EvmError, RuntimeError},
-    utils::block_utils::create_block_env
 };
 
 /// Slot for EIP-1967 implementation address
@@ -84,14 +83,18 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 /// # Example
 /// ```no_run
 /// use revm_trace::utils::proxy_utils::get_implementation;
+/// use revm_trace::{EvmBuilder, TxInspector};
 /// use alloy::primitives::address;
 ///
-/// # async fn example() -> anyhow::Result<()> {
-/// # let mut evm = todo!();
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// let inspector = TxInspector::new();
+/// let builder = EvmBuilder::new("https://eth.llamarpc.com".to_string(), inspector);
+/// let mut evm = builder.build().await?;
+/// 
 /// // USDT proxy contract
 /// let proxy = address!("dac17f958d2ee523a2206206994597c13d831ec7");
 ///
-/// if let Some(implementation) = get_implementation(&mut evm, proxy).await? {
+/// if let Some(implementation) = get_implementation(&mut evm, proxy, None)? {
 ///     println!("Implementation found at: {}", implementation);
 /// } else {
 ///     println!("No implementation found (not a proxy)");
@@ -115,19 +118,13 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 pub fn get_implementation<DB,INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     proxy: Address,
-    block_params: Option<BlockParams>,
+    block_env: Option<BlockEnv>,
 ) -> Result<Option<Address>, EvmError>
 where
     DB: Database
 {   
-    if let Some(block) = block_params {
-        let block = create_block_env (
-            block.number,
-            block.timestamp,
-            None,
-            None
-        );
-        evm.set_block(block);
+    if let Some(block_env) = block_env {
+        evm.set_block(block_env);
     }
     // First verify if the contract exists
     if evm.db().basic(proxy)

@@ -8,14 +8,23 @@ license = "MIT OR Apache-2.0"
 
 [features]
 default = []
-full = ["multi-threading"]
-multi-threading = ["foundry-fork-db"]
+full = []
+
 
 [dependencies]
 # Latest versions for research
-revm = { version = "24.0.1", features = ["serde-json", "alloydb", "dev", "serde"] }
+revm = { version = "24.0.1", features = [
+    "serde-json", 
+    "alloydb", 
+    "dev", 
+    "serde",
+    "optional_eip3607",
+    "optional_balance_check", 
+    "optional_block_gas_limit",
+    "optional_no_base_fee"
+] }
 alloy = { version = "1.0.3", default-features = false, features = ["full", "dyn-abi", "reqwest-rustls-tls","provider-debug-api", "provider-trace-api", "provider-ws"] }
-foundry-fork-db = { version = "0.15.1", optional = true }
+foundry-fork-db = { version = "0.15.1"}
 once_cell = "1.19"
 
 

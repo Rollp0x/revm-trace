@@ -12,9 +12,8 @@ use revm::{
 };
 use crate::{
     evm::TraceEvm,
-    utils::block_utils::create_block_env,
     errors::BalanceError,
-    types::BlockParams
+    types::BlockEnv
 };
 
 /// Query the native token balance of an address
@@ -32,30 +31,31 @@ use crate::{
 ///
 /// # Example
 /// ```rust,no_run
-/// # use revm_trace_multi_thread::utils::balance_utils::query_balancee;
+/// # use revm_trace::utils::balance_utils::query_balancee;
 /// # use alloy::primitives::address;
-/// # let mut evm = todo!();
-/// let balance = query_balancee(&mut evm, address!("abcd..."), None)?;
+/// use revm_trace::evm::builder::EvmBuilder;
+/// use revm::inspector::NoOpInspector;
+///
+/// let builder = EvmBuilder::new(
+///     "https://eth-mainnet.g.alchemy.com/v2/your-key".to_string(),
+///     NoOpInspector
+/// );
+/// let mut evm = builder.build().await.unwrap();
+/// let balance = query_balancee(&mut evm, address!("DFd5293D8e347dFe59E90eFd55b2956a1343963d"), None)?;
 /// println!("Balance: {} wei", balance);
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 pub fn query_balancee<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     owner: Address,
-    block_params:Option<BlockParams>
+    block_env:Option<BlockEnv>
 ) -> Result<U256, BalanceError>
 where
     DB: Database
 {
     // Set block context if specified
-    if let Some(block) = block_params {
-        let block = create_block_env (
-            block.number,
-            block.timestamp,
-            None,
-            None
-        );
-        evm.set_block(block);
+    if let Some(block_env) = block_env {
+        evm.set_block(block_env);
     }
     
     // Query account state from database

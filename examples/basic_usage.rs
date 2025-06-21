@@ -8,7 +8,7 @@
 //! - Display transfer information with proper token details
 
 use revm_trace::{
-    TransactionProcessor,EvmBuilder,
+    TransactionTrace,create_evm_with_trace,
     utils::erc20_utils::get_token_infos,
     SimulationBatch, SimulationTx, TxInspector
 };
@@ -17,8 +17,6 @@ use alloy::{
     primitives::{address, utils::format_units, Address, U256,TxKind}, 
     sol, sol_types::SolCall
 };
-mod common;
-use common::get_block_env;
 
 // Define ERC20 interface for transfer function
 sol!(
@@ -45,12 +43,10 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 #[tokio::main]
 async fn main() -> Result<()> {
     let inspector = TxInspector::new();
-    let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await.unwrap();
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await?;
 
     // USDC proxy contract address
     let usdc = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
@@ -67,12 +63,12 @@ async fn main() -> Result<()> {
         data: transfer_data.into(),
     };
 
-    let result = &evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let result = &evm.trace_transactions(SimulationBatch {
+        block_env: None,
         is_stateful: false,
         transactions: vec![tx],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0];
-    let output = &result.0.output().unwrap();
+    let output = result.0.output().unwrap();
     assert!(output.len() == 32 && output[31] == 1,"❌ Expected transfer to succeed");
     // Print results
     for transfer in &result.1.asset_transfers {

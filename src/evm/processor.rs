@@ -5,27 +5,22 @@
 //! inspector output for each transaction.
 
 use crate::{
-    traits::TransactionProcessor,
-    utils::block_utils::create_block_env,
-    evm::TraceEvm,
+    traits::{TransactionTrace,TraceOutput,ResetDB},
+    evm::{TraceEvm,builder::DefaultEvm},
     types::{SimulationBatch,SimulationTx}
 };
 
 use revm::{
-    InspectCommitEvm,InspectEvm,
+    InspectCommitEvm,
     context::{ContextTr, TxEnv}, 
     context_interface::result::ExecutionResult, 
-    database::{CacheDB, Database, DatabaseRef}, 
-    handler::MainnetContext, ExecuteCommitEvm, ExecuteEvm,
+    database::{CacheDB, Database, DatabaseRef,DatabaseCommit}, 
+    handler::MainnetContext, ExecuteEvm,
 };
 use crate::errors::{EvmError, RuntimeError};
 use crate::traits::TraceInspector;
 
-impl<DB, INSP> TraceEvm<CacheDB<DB>, INSP>
-where
-    DB: DatabaseRef,
-    INSP: TraceInspector<MainnetContext<CacheDB<DB>>> + Clone,
-{
+
     /// Process a single transaction with tracing
     ///
     /// Internal method that handles the execution of a single transaction,
@@ -43,45 +38,52 @@ where
     /// 2. Builds transaction environment from input
     /// 3. Executes transaction with commit
     /// 4. Collects inspector output
-    fn process_transaction_internal(
+impl<DB, INSP> TraceEvm<DB, INSP> 
+where
+    DB: Database + DatabaseCommit,
+    INSP: TraceInspector<MainnetContext<DB>> + Clone,
+{
+    fn trace_internal(
         &mut self,
         input: SimulationTx,
     ) -> Result<(ExecutionResult, INSP::Output), RuntimeError> {
-        // Reset inspector state before execution
+        // 重置 inspector 状态
         self.reset_inspector();
         
-        // Get current nonce from account state
+        // 获取当前 nonce
         let nonce = self.db()
             .basic(input.caller)
             .map_err(|e| RuntimeError::ExecutionFailed(format!("Failed to get account info: {}", e)))?
             .map(|acc| acc.nonce)
             .unwrap_or_default();
         
-        // Build transaction environment from simulation input
+        // 构建交易环境
         let tx = TxEnv::builder()
             .caller(input.caller)
             .value(input.value)
             .data(input.data)
             .kind(input.transact_to)
-            .nonce(nonce)  // Use actual nonce from account state
+            .nonce(nonce)
             .build_fill();
+            
         let inspector = self.clone_inspector();
 
-        let r = self.inspect_commit(tx,inspector)
+        let r = self.inspect_commit(tx, inspector)
             .map_err(|e| RuntimeError::ExecutionFailed(format!("Inspector execution failed: {}", e)))?;
-        // Collect inspector output after execution
+            
+        // 收集 inspector 输出
         let output = self.get_inspector_output();
         Ok((r, output))
     }
 }
 
 /// Implementation of TransactionProcessor trait for batch processing
-impl<DB, INSP> TransactionProcessor for TraceEvm<CacheDB<DB>, INSP> 
+impl<DB, INSP> TransactionTrace<MainnetContext<CacheDB<DB>>> for TraceEvm<CacheDB<DB>, INSP> 
 where
     DB: DatabaseRef,
     INSP: TraceInspector<MainnetContext<CacheDB<DB>>> + Clone,
 {
-    type InspectorOutput = INSP::Output;
+    type Inspector = INSP;
 
     /// Process a batch of transactions with optional block context
     ///
@@ -105,25 +107,21 @@ where
     /// 3. Processes each transaction in sequence
     /// 4. Manages state persistence based on `is_stateful` flag
     /// 5. Resets inspector after batch completion
-    fn process_transactions(
-        &mut self,
-        batch: SimulationBatch,
-    ) -> Vec<Result<(ExecutionResult, Self::InspectorOutput), EvmError>> {
+    fn trace_transactions(
+            &mut self,
+            batch: SimulationBatch
+        ) -> Vec<Result<(ExecutionResult, <Self::Inspector as TraceOutput>::Output), EvmError>> 
+    {
+        
         let SimulationBatch {
-            block_params,
+            block_env,
             transactions,
             is_stateful,
         } = batch;
         
         // 1. Set block environment if provided
-        if let Some(block) = block_params {
-            let block = create_block_env(
-                block.number,
-                block.timestamp,
-                None,
-                None
-            );
-            self.set_block(block);
+        if let Some(block_env) = block_env {
+            self.set_block(block_env);
         }
         
         // 2. Reset database to clean state
@@ -134,7 +132,7 @@ where
 
         // 3. Process each transaction in the batch
         for (index, input) in transactions.into_iter().enumerate() {
-            let result = self.process_transaction_internal(input)
+            let result = self.trace_internal(input)
                 .map_err(EvmError::Runtime);
             results.push(result);
             
@@ -147,5 +145,19 @@ where
         // 4. Clean up inspector state after batch completion
         self.reset_inspector();
         results
+
+    }
+}
+
+impl DefaultEvm {
+    /// Execute transactions and return only execution results (ignore inspector output)
+    pub fn execute_batch(
+        &mut self,
+        batch: SimulationBatch,
+    ) -> Vec<Result<ExecutionResult, EvmError>> {
+        self.trace_transactions(batch)
+            .into_iter()
+            .map(|result| result.map(|(exec_result, _)| exec_result))
+            .collect()
     }
 }

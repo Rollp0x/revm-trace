@@ -28,7 +28,8 @@ use alloy::dyn_abi::{DynSolType, DynSolValue};
 ///
 /// # Example
 /// ```no_run
-/// # use your_crate::error_utils::parse_custom_error;
+/// use revm_trace::error_utils::parse_custom_error;
+/// use alloy::primitives::hex;
 /// let error_output = hex::decode("08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000014496e73756666696369656e742062616c616e636500000000000000000000000000").unwrap();
 /// let error_message = parse_custom_error(&error_output);
 /// assert_eq!(error_message, Some("Insufficient balance".to_string()));

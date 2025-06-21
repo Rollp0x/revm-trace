@@ -24,52 +24,21 @@
 //! - Old blocks: Requires archive node access
 
 use revm_trace::{
-    EvmBuilder,
-    TransactionProcessor,
+    create_evm_with_trace,
+    TransactionTrace,
     utils::error_utils::parse_custom_error, 
-    BlockParams, SimulationBatch, SimulationTx, TxInspector
+    SimulationBatch, SimulationTx, TxInspector
 };
 use revm::context::ContextTr;
 use revm::database::Database;
 
 use alloy::{
-    eips::BlockNumberOrTag, 
     primitives::{address, hex, Address, U256,TxKind}, 
-    providers::{Provider, ProviderBuilder, WsConnect}, 
     sol, sol_types::SolCall
 };
 
-/// Helper function to get block environment from HTTP RPC
-async fn get_block_env(http_url: &str,block_number:Option<u64>) -> BlockParams {
-    let provider = ProviderBuilder::new()
-        .connect_http(http_url.parse().unwrap());
-    if let Some(block_number) = block_number {
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number)).await.unwrap().unwrap();
-        BlockParams { number: block_number, timestamp: block_info.header.timestamp }
-    } else {
-        let latest_block = provider.get_block_number().await.unwrap();
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block)).await.unwrap().unwrap();
-        BlockParams { number: latest_block, timestamp: block_info.header.timestamp }
-    }
-}
-
-/// Helper function to get block environment from WebSocket RPC
-async fn get_block_env_ws(ws_url: &str, block_number: Option<u64>) -> BlockParams {
-    let provider = ProviderBuilder::new()
-        .connect_ws(WsConnect::new(ws_url)).await.unwrap();
-    if let Some(block_number) = block_number {
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(block_number)).await.unwrap().unwrap();
-        BlockParams { number: block_number, timestamp: block_info.header.timestamp }
-    } else {
-        let latest_block = provider.get_block_number().await.unwrap();
-        let block_info = provider.get_block_by_number(BlockNumberOrTag::Number(latest_block)).await.unwrap().unwrap();
-        BlockParams { number: latest_block, timestamp: block_info.header.timestamp }
-    }
-}
-
 // Test contract definitions using alloy-sol macro
 sol! {
-
     contract OwnerDemo {
         address public owner;
         address public revert_address;
@@ -116,6 +85,7 @@ sol! {
         }
     }
 }
+
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 const SENDER: Address = address!("3ee18B2214AFF97000D974cf647E7C347E8fa585");
 const CAFE_ADDRESS: Address = address!("cafe00000000000000000000000000000000face");
@@ -131,14 +101,12 @@ const REVERT_DEMO_BYTECODE:&str = "0x608060405234801561001057600080fd5b506101098
 /// - Error propagation in multicall context
 /// - Trace address tracking
 #[tokio::test(flavor = "multi_thread")]
-async fn test_nested_revert_with_try_catch() {
+async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await;
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await?;
 
     // get current nonce to calculate contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
@@ -183,8 +151,8 @@ async fn test_nested_revert_with_try_catch() {
     };
     
     // execute all transactions
-    let results = evm.process_transactions(SimulationBatch {
-        block_params:Some(block_params),
+    let results = evm.trace_transactions(SimulationBatch {
+        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -229,6 +197,8 @@ async fn test_nested_revert_with_try_catch() {
     // verify error trace
     let error_trace_address = results[3].1.error_trace_address.as_ref().unwrap();
     assert_eq!(*error_trace_address, vec![1,0], "Error trace should be from the second call");
+
+    Ok(())
 }
 
 /// Test nested revert handling in multicall context
@@ -238,14 +208,12 @@ async fn test_nested_revert_with_try_catch() {
 /// - Trace address tracking
 /// - Error origin identification
 #[tokio::test(flavor = "multi_thread")]
-async fn test_nested_revert_with_multicall() {  
+async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {  
     let inspector = TxInspector::new();
-     let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await;
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await?;
 
 
     // get current nonce to calculate contract address
@@ -292,8 +260,8 @@ async fn test_nested_revert_with_multicall() {
     };
 
     // execute all transactions
-    let results = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let results = evm.trace_transactions(SimulationBatch {
+        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -332,6 +300,8 @@ async fn test_nested_revert_with_multicall() {
     assert_eq!(final_trace.trace_address, vec![0,0], "Final trace should have trace_address [0,0]");
     assert!(!final_trace.status.is_success(), "Final trace should be failed");
     assert!(final_trace.error_origin, "Final trace should be error origin");
+
+    Ok(())
 }
 
 /// Test nested revert handling without multicall
@@ -341,14 +311,13 @@ async fn test_nested_revert_with_multicall() {
 /// - Error handling in standalone context
 /// - Trace collection and verification
 #[tokio::test(flavor = "multi_thread")]
-async fn test_nested_revert_without_multicall() {
+async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await;
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await?;
+
 
 
     // get current nonce to calculate contract address
@@ -394,8 +363,8 @@ async fn test_nested_revert_without_multicall() {
     };
 
     // execute all transactions
-    let results = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let results = evm.trace_transactions(SimulationBatch {
+        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -447,6 +416,8 @@ async fn test_nested_revert_without_multicall() {
     // verify error trace
     let error_trace = results[3].1.error_trace_address.as_ref().unwrap();
     assert_eq!(*error_trace, vec![0,0], "Error_trace should be same as final_trace");
+
+    Ok(())
 }
 
 /// Test multicall execution with error handling
@@ -456,16 +427,12 @@ async fn test_nested_revert_without_multicall() {
 /// - Error handling in multicall context
 /// - Transaction ordering and state changes
 #[tokio::test(flavor = "multi_thread")]
-async fn test_multicall_with_error() {
+async fn test_multicall_with_error() -> anyhow::Result<()>   {
     let inspector = TxInspector::new();
-     let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await;
-
-
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await?;
     // get current nonce to calculate contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
     let nonce = current_account.nonce;
@@ -500,8 +467,8 @@ async fn test_multicall_with_error() {
     };
 
     // execute batch transactions
-    let results = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let results = evm.trace_transactions(SimulationBatch {
+        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -524,6 +491,8 @@ async fn test_multicall_with_error() {
     assert_eq!(error_trace.from , CAFE_ADDRESS, "Error should come from CAFE_ADDRESS call");
     assert_eq!(error_trace.to, expected_contract_address, "Error should be in contract call");
     assert!(error_trace.trace_address.is_empty(), "Error should be in the top transaction");
+
+    Ok(())
     
 }
 
@@ -536,13 +505,10 @@ async fn test_multicall_with_error() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_create_contract() {
     let inspector = TxInspector::new();
-     let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await;
-
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await.unwrap();
 
     let sender = address!("b20a608c624Ca5003905aA834De7156C68b2E1d0");
     let current_account = evm.db().basic(sender).unwrap().unwrap();
@@ -557,11 +523,12 @@ async fn test_create_contract() {
         value: U256::ZERO,
         data: data.into(),
     };
-    let results = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let results = evm.trace_transactions(SimulationBatch {
+        block_env:None,
         is_stateful: false,
         transactions: vec![tx0],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+
     assert_eq!(results.len(), 1, "Should have results for one transaction");
     let result = &results[0].0;
     assert!(result.is_success(), "Contract creation should succeed");
@@ -574,13 +541,10 @@ async fn test_create_contract() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_stateful_and_stateless_call_trace() {
     let inspector = TxInspector::new();
-     let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await;
-
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await.unwrap();
 
     let sender = address!("b20a608c624Ca5003905aA834De7156C68b2E1d0");
     let current_account = evm.db().basic(sender).unwrap().unwrap();
@@ -603,8 +567,8 @@ async fn test_stateful_and_stateless_call_trace() {
         data: data.into(),
     };
 
-    let results = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params.clone()),
+    let results = evm.trace_transactions(SimulationBatch {
+        block_env: None,
         is_stateful: false,
         transactions: vec![tx0.clone(), tx1.clone()],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -620,8 +584,8 @@ async fn test_stateful_and_stateless_call_trace() {
     assert_eq!(deploy_call_tx1.from, sender, "Creator should match");
     assert_eq!(deploy_call_tx1.to, expected_contract_address, "Contract address should match");
 
-    let results = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let results = evm.trace_transactions(SimulationBatch {
+        block_env: None,
         is_stateful: true,
         transactions: vec![tx0.clone(), tx1.clone()],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -640,15 +604,12 @@ async fn test_stateful_and_stateless_call_trace() {
 
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_wth_ws() {
-    let ws_rpc_url = std::env::var("WS_RPC_URL").unwrap();
+async fn test_wth_ws() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-     let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
-        inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await;
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
+        inspector,
+    ).await?;
 
     
 
@@ -663,7 +624,7 @@ async fn test_wth_ws() {
     let transfer2_amount = U256::from(60000000000000000u64);  // 0.06 ETH
 
     let txs = SimulationBatch {
-        block_params: Some(block_params),
+        block_env: None,
         is_stateful: true,
         transactions: vec![
             SimulationTx {
@@ -681,7 +642,7 @@ async fn test_wth_ws() {
         ],
     };
 
-    let results = evm.process_transactions(txs).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm.trace_transactions(txs).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
     assert_eq!(results.len(), 2, "Should have results for both transactions");
 
     // verify first tx
@@ -710,5 +671,7 @@ async fn test_wth_ws() {
     let expected_cafe_balance = transfer1_amount - transfer2_amount;
     assert_eq!(cafe_balance_after, expected_cafe_balance, "CAFE should have 0.04 ETH left");
     assert_eq!(dead_balance_after, transfer2_amount, "DEAD should have received 0.06 ETH");
+
+    Ok(())
 
 }

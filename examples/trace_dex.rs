@@ -11,8 +11,8 @@
 
 use std::collections::HashMap;
 use revm_trace::{
-    EvmBuilder,
-    TransactionProcessor,
+    create_evm_with_trace,
+    TransactionTrace,
     types::{TokenInfo},
     utils::erc20_utils::get_token_infos,
     SimulationBatch, SimulationTx, TxInspector
@@ -24,8 +24,6 @@ use alloy::{
 };
 use prettytable::{format, Cell, Row, Table};
 use colored::*;
-mod common;
-use common::get_block_env;
 
 // Define Uniswap V2 Router interface for swapping
 sol! {
@@ -80,13 +78,11 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 async fn main() -> Result<()> {
     // Create EVM instance with transaction tracing
     let inspector = TxInspector::new();
-    let builder = EvmBuilder::new(
-        ETH_RPC_URL.to_string(),
+    // Create basic EVM instance without inspector
+    let mut evm = create_evm_with_trace(
+        ETH_RPC_URL,
         inspector
-    );
-    let mut evm = builder.build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await.unwrap();
-
+    ).await?;
     // Configure swap parameters
     let caller = address!("57757E3D981446D585Af0D9Ae4d7DF6D64647806");
     let router = address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D");
@@ -122,8 +118,8 @@ async fn main() -> Result<()> {
     };
 
     // Process transaction and get results
-    let result = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let result = evm.trace_transactions(SimulationBatch {
+        block_env: None,
         transactions: vec![tx],
         is_stateful: true,
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0].clone();

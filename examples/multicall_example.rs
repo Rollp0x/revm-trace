@@ -4,7 +4,7 @@
 //! to batch multiple contract calls efficiently.
 
 use revm_trace::{
-    EvmBuilder,
+    create_evm,
     utils::multicall_utils::{MulticallManager,MulticallCall},
 };
 use anyhow::Result;
@@ -17,8 +17,6 @@ sol! {
 }
 
 
-mod common;
-
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
@@ -26,8 +24,9 @@ async fn main() -> Result<()> {
     println!("Testing Multicall utilities...");
     
     // Create EVM instance
-    let mut evm = EvmBuilder::default_inspector(ETH_RPC_URL.to_string()).build().await.unwrap();
-    let block_params = None;
+    let mut evm = create_evm(
+        ETH_RPC_URL
+    ).await?;
     
     // Create multicall manager
     let manager = MulticallManager::new();
@@ -68,7 +67,7 @@ async fn main() -> Result<()> {
         &mut evm,
         batch_calls,
         true, // require success
-        block_params,
+        None,
     )?;
     
     println!("✅ Batch execution completed!");

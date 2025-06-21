@@ -19,14 +19,12 @@ use revm::{
     database::{Database,DatabaseCommit,CacheDB,DatabaseRef}, 
     ExecuteCommitEvm, ExecuteEvm
 };
-use revm::context::ContextTr;
-// use revm::database::Database;
 
 use crate::{
-    utils::block_utils::create_block_env,
     evm::TraceEvm,
+    traits::ResetDB,
     errors::{RuntimeError,EvmError},
-    types::BlockParams
+    types::BlockEnv
 };
 
 
@@ -180,7 +178,7 @@ impl MulticallManager {
         evm: &mut TraceEvm<CacheDB<DB>, INSP>,
         calls: Vec<MulticallCall>,
         _require_success: bool,
-        block_params: Option<BlockParams>
+        block_env: Option<BlockEnv>
     ) -> Result<Vec<MulticallResult>, EvmError>
     where
         DB: DatabaseRef,
@@ -188,14 +186,8 @@ impl MulticallManager {
         if calls.is_empty() {
             return Ok(Vec::new());
         }
-        if let Some(block) = block_params {
-            let block = create_block_env (
-                block.number,
-                block.timestamp,
-                None,
-                None
-            );
-            evm.set_block(block);
+        if let Some(block_env) = block_env {
+            evm.set_block(block_env);
         }
         evm.reset_db(); // Reset database to ensure clean state for deployment
         let multi_call_address = self.deploy_multicall(evm)?;

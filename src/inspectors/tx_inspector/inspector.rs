@@ -12,11 +12,10 @@
 //! - Self-destructs and balance transfers
 //! - ERC20 transfer event parsing
 
-use crate::{TxInspector,TraceInspector};
+use crate::TxInspector;
 use revm::{
     context::ContextTr,
     Inspector,
-    database::{DatabaseRef,CacheDB},
     interpreter::{
         CallInputs, 
         CallOutcome, 
@@ -26,8 +25,6 @@ use revm::{
         Interpreter,
         InterpreterTypes,
     },
-    handler::MainnetContext,
-
 };
 use crate::utils::erc20_utils::parse_transfer_log;
 use crate::types::*;
@@ -180,7 +177,6 @@ where
         _inputs: &CallInputs,
         outcome: &mut CallOutcome,
     )  {
-        println!("✅ TxInspector::call_end() called! Result: {:?}, Gas Spent: {}", outcome.result.result, outcome.result.gas.spent());
         self.handle_end(outcome.result.result, outcome.result.gas.spent(), outcome.result.output.clone());
         self.address_stack.pop();
     }
@@ -201,7 +197,6 @@ where
         _inputs: &CreateInputs,
         outcome: &mut CreateOutcome,
     ) {
-        println!("✅ TxInspector::create_end() called! Result: {:?}, Gas Spent: {}", outcome.result.result, outcome.result.gas.spent());
         if let Some(address) = outcome.address {
             // Get current trace index without removing it
             // This will be popped in handle_end
@@ -237,7 +232,6 @@ where
         _context: &mut CTX, 
         log: Log
     ) {
-        println!("📜 TxInspector::log() called! Log: {:?}", log);
         self.logs.push(log.clone());
         
         if let Some((from, to, amount)) = parse_transfer_log(log.topics(), &log.data.data) {
@@ -271,10 +265,3 @@ where
     }
 }
 
-
-impl<DB> TraceInspector<MainnetContext<CacheDB<DB>>> for TxInspector
-where
-    DB: DatabaseRef,
-{
-    
-}

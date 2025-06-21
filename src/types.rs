@@ -8,7 +8,6 @@ use alloy::{
     primitives::{U256, Address, Bytes, TxKind},
 };
 use serde::Serialize;
-use revm::database::{AlloyDB,CacheDB,WrapDatabaseAsync};
 pub use revm::{
     interpreter::{CallScheme, CreateScheme},
     context::BlockEnv
@@ -53,57 +52,10 @@ type AllFillers = JoinFill<Identity, GasFillers>;
 /// - Provides type-safe access to Ethereum JSON-RPC methods
 /// 
 /// This is the primary provider type for single-threaded operations.
-pub type HttpProvider = FillProvider<AllFillers, RootProvider<AnyNetwork>, AnyNetwork>;
-
-/// AlloyDB instance configured for HTTP provider access
-/// 
-/// Database adapter that:
-/// - Connects to blockchain state via `HttpProvider`
-/// - Uses `AnyNetwork` for broad compatibility
-/// - Provides efficient caching of blockchain queries
-/// - Implements the revm `Database` trait
-pub type AlloyDBType = AlloyDB<AnyNetwork, HttpProvider>;
-
-/// Cached database with async wrapper for single-threaded EVM
-/// 
-/// Multi-layered database setup:
-/// - `AlloyDBType`: Base blockchain access via HTTP
-/// - `WrapDatabaseAsync`: Async adapter for database operations  
-/// - `CacheDB`: In-memory cache layer for performance
-/// 
-/// This is the standard database configuration for most EVM operations.
-pub type CacheAlloyDB = CacheDB<WrapDatabaseAsync<AlloyDBType>>;
-
-// ========================= Multi-Threading Support =========================
-
-#[cfg(feature = "multi-threading")]
-use foundry_fork_db::backend::SharedBackend;
-
-/// Cached database with shared backend for multi-threaded EVM operations
-/// 
-/// Uses foundry-fork-db's `SharedBackend` for:
-/// - Thread-safe state management across multiple EVM instances
-/// - Advanced forking and snapshot capabilities
-/// - Concurrent transaction processing
-/// - State isolation between different execution contexts
-/// 
-/// This configuration is ideal for high-throughput scenarios and testing.
-#[cfg(feature = "multi-threading")]
-pub type SharedCacheDB = CacheDB<SharedBackend>;
+pub type AnyNetworkProvider = FillProvider<AllFillers, RootProvider<AnyNetwork>, AnyNetwork>;
 
 pub const NATIVE_TOKEN_ADDRESS: Address = Address::ZERO;
 
-/// Block Parameters for transaction simulation
-///
-/// Contains the necessary block context parameters required
-/// for accurate transaction simulation.
-#[derive(Debug, Clone, Serialize)]
-pub struct BlockParams {
-    /// Block number for the simulation context
-    pub number: u64,
-    /// Block timestamp in Unix format
-    pub timestamp: u64,
-}
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct TokenInfo {
@@ -134,8 +86,8 @@ pub struct SimulationTx {
 /// configurable state handling between transactions.
 #[derive(Debug, Clone)]
 pub struct SimulationBatch {
-    /// Block parameters for all transactions in the batch
-    pub block_params: Option<BlockParams>,
+    /// Block env for all transactions in the batch
+    pub block_env: Option<BlockEnv>,
     /// Sequence of transactions to execute
     pub transactions: Vec<SimulationTx>,
     /// Whether to preserve state between transactions

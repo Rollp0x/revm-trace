@@ -7,6 +7,4 @@
 //! - `revm_inspectors`: Implementations for built-in REVM inspectors
 //! - `tx_inspector`: Custom transaction inspector with comprehensive tracing
 
-pub mod revm_inspectors;
 pub mod tx_inspector;
-pub mod test_inspector;

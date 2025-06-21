@@ -48,7 +48,6 @@
 //! let mut evm = EvmBuilder::new(
 //!     "https://eth-mainnet.g.alchemy.com/v2/your-api-key"
 //! )
-//! .with_inspector(TxInspector::new())
 //! .build()
 //! .await?;
 //!
@@ -109,17 +108,20 @@
 //! - `errors`: Error types and handling
 //! - `utils`: Helper functions and utilities
 
-
 pub mod types;
 pub mod evm;
-pub mod errors;
 pub mod utils;
 pub mod traits;
 pub mod inspectors;
+pub mod errors;
 
 // Re-export core types for easier access
 pub use inspectors::tx_inspector::TxInspector;
-pub use evm::TraceEvm;
-pub use evm::builder::EvmBuilder;
-pub use types::{BlockEnv, BlockParams, SimulationTx, SimulationBatch};
-pub use traits::{TransactionProcessor, TraceInspector};
+pub use evm::{TraceEvm,builder::*};
+pub use types::{BlockEnv, SimulationTx, SimulationBatch};
+pub use traits::*;
+
+// Re-export core libraries for convenience
+pub use revm;
+pub use alloy;
+pub use foundry_fork_db;

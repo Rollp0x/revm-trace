@@ -86,7 +86,6 @@ pub struct TxTraceOutput {
 impl TxInspector {
     /// Creates a new inspector instance with empty state
     pub fn new() -> Self {
-        println!("🎯 TxInspector::new() - Creating new inspector instance");
         Default::default()
     }
     

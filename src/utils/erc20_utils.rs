@@ -11,10 +11,9 @@ use revm::{
 };
 use anyhow::Result;
 use crate::{
-    utils::block_utils::create_block_env,
     evm::TraceEvm,
     errors::{TokenError,EvmError},
-    types::{BlockParams, TokenInfo}
+    types::{BlockEnv, TokenInfo}
 };
 use once_cell::sync::Lazy;
 use alloy::{
@@ -61,19 +60,13 @@ pub fn query_erc20_balance<DB,INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     token_address: Address,
     owner: Address,
-    block_params:Option<BlockParams>
+    block_env:Option<BlockEnv>
 ) -> Result<U256>
 where 
     DB: Database
 {   
-    if let Some(block) = block_params {
-        let block = create_block_env (
-            block.number,
-            block.timestamp,
-            None,
-            None
-        );
-        evm.set_block(block);
+    if let Some(block_env) = block_env {
+        evm.set_block(block_env);
     }
 
     let data:Bytes = balanceOfCall { owner: owner }.abi_encode().into();
@@ -202,19 +195,13 @@ where
 pub fn get_token_infos<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     tokens: &[Address],
-    block_params: Option<BlockParams>,
+    block_env:Option<BlockEnv>
 ) -> Result<Vec<TokenInfo>,EvmError>
-where
+where 
     DB: Database
-{
-    if let Some(block) = block_params {
-        let block = create_block_env (
-            block.number,
-            block.timestamp,
-            None,
-            None
-        );
-        evm.set_block(block);
+{   
+    if let Some(block_env) = block_env {
+        evm.set_block(block_env);
     }
 
     let name_encoded: Bytes = nameCall { }.abi_encode().into();

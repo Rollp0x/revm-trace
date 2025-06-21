@@ -4,8 +4,8 @@
 //! directly from ExecutionResult without using inspectors.
 
 use revm_trace::{
-    EvmBuilder,
-    TransactionProcessor,
+    create_evm,
+    TransactionTrace,
     SimulationBatch, SimulationTx,
 };
 use anyhow::Result;
@@ -15,10 +15,8 @@ use alloy::{
     primitives::{address, hex, Address, U256,TxKind}, 
     sol
 };
-use revm::context_interface::result::{ExecutionResult, Output};
+use revm::context_interface::result::ExecutionResult;
 
-mod common;
-use common::get_block_env;
 
 // Define a simple contract
 sol! {
@@ -40,12 +38,11 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Testing contract address extraction from ExecutionResult...");
-    
     // Create basic EVM instance without inspector
-    let mut evm = EvmBuilder::default_inspector(ETH_RPC_URL.to_string()).build().await.unwrap();
-    
-    // Get block environment
-    let block_params = get_block_env(ETH_RPC_URL, None).await.unwrap();
+    let mut evm = create_evm(
+        ETH_RPC_URL,
+    ).await?;
+
     
     // Predict contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
@@ -62,32 +59,27 @@ async fn main() -> Result<()> {
     };
     
     // Execute deployment
-    let results = evm.process_transactions(SimulationBatch {
-        block_params: Some(block_params),
+    let results = evm.execute_batch(SimulationBatch {
+        block_env: None,
         is_stateful: false,
         transactions: vec![deploy_tx],
     });
     
     // Check the result
     match &results[0] {
-        Ok((execution_result, _)) => {
+        Ok(execution_result) => {
             println!("Deployment successful!");
             
             // Try to extract contract address from ExecutionResult
             match execution_result {
                 ExecutionResult::Success { output, .. } => {
-                    match output {
-                        Output::Create(bytecode, address_opt) => {
-                            if let Some(deployed_address) = address_opt {
-                                println!("✅ Contract deployed at: {}", deployed_address);
-                                println!("✅ Matches prediction: {}", deployed_address == &predicted_address);
-                                return Ok(());
-                            } else {
-                                println!("❌ No address returned from Create output");
-                            }
+                    match output.address() {
+                        Some(address) => {
+                            println!("✅ Contract deployed at address: {}", address);
+                            assert_eq!(*address, predicted_address, "❌ Contract address does not match predicted address");
                         }
-                        Output::Call(_) => {
-                            println!("❌ Got Call output instead of Create output");
+                        None=> {
+                            println!("❌ Created contract address is None, expected address: {}", predicted_address);
                         }
                     }
                 }

@@ -10,12 +10,10 @@
 
 use revm_trace::{
     utils::proxy_utils::get_implementation,
-    EvmBuilder,
+    create_evm
 };
 use anyhow::Result;
 use alloy::primitives::address;
-mod common;
-use common::get_block_env;
 
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
@@ -23,16 +21,16 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 async fn main() -> Result<()> {
     println!("Starting proxy implementation test...");
     // Create EVM instance without inspector since we're only reading state
-    let mut evm = EvmBuilder::default_inspector(ETH_RPC_URL.to_string()).build().await.unwrap();
-    let block_params = get_block_env(ETH_RPC_URL, None).await.ok();
-    println!("✅ EVM instance created successfully");
+    let mut evm = create_evm(
+        ETH_RPC_URL
+    ).await?;
 
     // USDC uses the proxy pattern - this is the proxy contract address
     let usdc_proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
     println!("📝 Testing USDC proxy contract at: {}", usdc_proxy);
 
     // Query the implementation contract address
-    let implementation_address = get_implementation(&mut evm, usdc_proxy, block_params).unwrap();
+    let implementation_address = get_implementation(&mut evm, usdc_proxy, None).unwrap();
 
     match implementation_address {
         Some(impl_addr) => {
