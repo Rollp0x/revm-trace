@@ -5,7 +5,6 @@
 
 use revm_trace::{
     create_evm,
-    TransactionTrace,
     SimulationBatch, SimulationTx,
 };
 use anyhow::Result;

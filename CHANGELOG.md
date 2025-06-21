@@ -5,23 +5,183 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.6] - 2025-06-15
+## [3.0.0] - 2025-06-21
+
+### 🚀 Major Architecture Overhaul
+This version represents a **complete rewrite** of the library with breaking changes to provide better performance, simplified APIs, and native multi-threading support.
+
 ### Added
-- **New Multicall utilities module** (`multicall_utils.rs`)
+- **🔥 Native Multi-Threading Support**
+  - All EVM instances are now thread-safe by design
+  - Optimized concurrent processing patterns
+  - Built-in shared cache database for optimal performance
+  - Support for high-throughput parallel transaction processing
+
+- **⚡ Dual EVM Mode Architecture**
+  - **Standard EVM Mode**: Ultra-fast execution with `create_evm()` and `create_evm_ws()`
+  - **Tracing EVM Mode**: Comprehensive analysis with `create_evm_with_tracer()` and `create_evm_ws_with_tracer()`
+  - Clear separation between performance-critical and analysis scenarios
+  - `NoOpInspector` for zero-overhead execution in standard mode
+
+- **🎯 Unified Type System**
+  - Single `TraceEvm<CacheDB<SharedBackend>, INSP>` type for all scenarios
+  - Eliminated `AlloyTraceEvm` and complex type variations
+  - Consistent type aliases: `StandardEvm`, `TracingEvm<I>`
+  - Clear generic constraints and trait bounds
+
+- **🌐 Enhanced Protocol Support**
+  - Native WebSocket support with dedicated builder functions
+  - Automatic connection management and reconnection
+  - HTTP and WebSocket providers with identical APIs
+  - rustls-tls for secure connections without OpenSSL dependency
+
+- **📊 Advanced Inspector System**
+  - Redesigned `TxInspector` with comprehensive trace collection
+  - `TraceOutput` and `Reset` traits for standardized inspector behavior
+  - Full support for custom REVM inspectors
+  - Asset transfer tracking with detailed transaction analysis
+  - Call hierarchy tracing with precise error location
+
+### Changed
+- **💥 BREAKING: Complete API Redesign**
+  - Removed `EvmBuilder` pattern in favor of simple creation functions
+  - `create_evm_instance_with_tracer()` → `create_evm_with_tracer()`
+  - Eliminated complex configuration builders
+  - Simplified transaction processing with `execute_batch()` and `trace_transactions()`
+
+- **💥 BREAKING: Rewritten Core Modules**
+  - **`multicall_utils.rs`**: Complete rewrite with improved error handling and type safety
+  - **`evm/builder.rs`**: New implementation with unified provider creation
+  - **`traits.rs`**: Expanded trait system with `TraceOutput`, `Reset`, `TransactionTrace`
+  - **`types.rs`**: Redesigned type system with clear provider abstractions
+  - **`errors.rs`**: Enhanced error hierarchy with better context
+
+- **💥 BREAKING: Transaction Processing**
+  - New `SimulationBatch` structure with improved state management
+  - Stateful/stateless execution modes with automatic nonce management
+  - `process_transaction_internal()` → internal API, users use `execute_batch()`/`trace_transactions()`
+  - Enhanced batch processing with per-transaction error handling
+
+### Improved
+- **🚀 Performance Optimizations**
+  - Zero-allocation paths for standard execution mode
+  - Optimized RPC connection management
+  - Reduced memory footprint through smart caching
+  - Concurrent processing patterns with minimal overhead
+
+- **📚 Documentation & Examples**
+  - Comprehensive API documentation with usage examples
+  - Clear distinction between standard and tracing modes
+  - Updated all examples to reflect new APIs
+  - Performance guidance and best practices
+  - Multi-threading usage patterns
+
+- **🧪 Testing Infrastructure**
+  - Expanded test coverage for all new features
+  - Integration tests for both EVM modes
+  - Concurrency testing with multi-threading scenarios
+  - Documentation tests for all public APIs
+
+### Fixed
+- **Thread Safety Issues**
+  - Eliminated race conditions in shared state access
+  - Proper synchronization for concurrent EVM instances
+  - Safe multi-threading patterns throughout the codebase
+
+- **Type System Inconsistencies**
+  - Resolved generic parameter conflicts
+  - Fixed trait bound ambiguities
+  - Consistent type constraints across all modules
+
+- **Memory Management**
+  - Fixed memory leaks in inspector implementations
+  - Proper cleanup of RPC connections
+  - Optimized cache invalidation strategies
+
+### Removed
+- **💥 BREAKING: Deprecated APIs**
+  - `AlloyTraceEvm` type (replaced by unified `TraceEvm`)
+  - `EvmBuilder` pattern (replaced by creation functions)
+  - `create_evm_instance_with_tracer()` (replaced by `create_evm_with_tracer()`)
+  - Complex configuration structs (simplified to function parameters)
+
+### Migration Guide
+```rust
+// v2.x (deprecated)
+let evm = EvmBuilder::new()
+    .with_rpc_url("...")
+    .with_tracer(inspector)
+    .build().await?;
+
+// v3.0 (new)
+let evm = create_evm_with_tracer("...", inspector).await?;
+```
+
+### Dependencies
+- Updated to latest REVM 24.0.1 for improved performance and stability
+- Alloy 1.0.3 with enhanced provider capabilities
+- Foundry-fork-db 0.15.1 for optimized database operations
+
+### Technical Details
+- **Type System Unification**
+  - Single `TraceEvm<DB, INSP>` type replaces multiple EVM variants
+  - Clear type aliases: `StandardEvm = TraceEvm<CacheDB<SharedBackend>, NoOpInspector>`
+  - Consistent generic constraints across all modules
+  
+- **Inspector Architecture**
+  - `NoOpInspector` implementation with `Reset` and `TraceOutput` traits
+  - Custom `TxInspector` with comprehensive asset transfer tracking
+  - Full call hierarchy analysis with error context
+
+- **Provider System**
+  - Layered filler pattern with automatic transaction field population
+  - HTTP/WebSocket provider unification with rustls-TLS
+  - Connection pooling and automatic reconnection handling
+
+- **Batch Processing**
+  - Dynamic nonce management for stateful execution
+  - Per-transaction error isolation in batch operations
+  - Memory-efficient processing of large transaction sets
+
+- **Multicall System**
+  - Universal deployment pattern for any EVM chain
+  - Type-safe call construction and result parsing
+  - Support for 100+ simultaneous contract calls
+
+### Performance Improvements
+- **Zero-Copy Processing**: Eliminated unnecessary allocations in hot paths
+- **Concurrent Cache**: Shared database cache across multiple EVM instances
+- **Smart Batching**: Automatic batch size optimization based on complexity
+- **Memory Pooling**: Reusable buffers for frequent operations
+
+### Breaking Changes Summary
+| v2.x API | v3.0 API | Notes |
+|----------|----------|-------|
+| `EvmBuilder::new()` | `create_evm()` | Simplified creation |
+| `AlloyTraceEvm` | `StandardEvm` | Unified type system |
+| `create_evm_instance_with_tracer()` | `create_evm_with_tracer()` | Consistent naming |
+| `process_transaction_internal()` | `execute_batch()`/`trace_transactions()` | User-facing APIs |
+
+## [2.0.6] - 2025-06-15 [SUPERSEDED by 3.0.0]
+### Added
+- **New Multicall utilities module** (`multicall_utils.rs`) - **[REWRITTEN in 3.0.0]**
   - Universal Multicall solution that works on any EVM-compatible chain
   - Dynamic deployment of Multicall contract in simulation environment
   - Batch execution of multiple contract calls with individual error handling
   - Convenience functions for ERC20 balance and token info batch queries
   - Zero-dependency solution (no need for pre-deployed Multicall contracts)
   - Lightweight implementation without complex inspector requirements
-- **Enhanced batch processing capabilities**
+- **Enhanced batch processing capabilities** - **[REDESIGNED in 3.0.0]**
   - Support for 100+ contract calls in a single batch operation
   - Optimized for cross-chain compatibility across all EVM networks
   - Efficient gas-free simulation environment for batch queries
 
 ### Examples
-- Added `multicall_example.rs` demonstrating batch ERC20 balance queries
-- Added `test_contract_address.rs` showing contract deployment address extraction
+- Added `multicall_example.rs` demonstrating batch ERC20 balance queries - **[UPDATED in 3.0.0]**
+- Added `test_contract_address.rs` showing contract deployment address extraction - **[UPDATED in 3.0.0]**
+
+### Migration Note
+⚠️  **This version is superseded by 3.0.0 which includes a complete rewrite of `multicall_utils` with improved type safety, better error handling, and native multi-threading support.**
 
 ## [2.0.5] - 2025-3-31
 ### Added
@@ -52,41 +212,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a bug where the database was not being reset while starting a new simulation
 
 
-## [2.0.0] - 2024-12-09
+## [2.0.0] - 2024-12-09 [SUPERSEDED by 3.0.0]
 
-### Added
-- Comprehensive trait system for extensible EVM functionality
+### Added - **[EXTENSIVELY REWRITTEN in 3.0.0]**
+- Comprehensive trait system for extensible EVM functionality - **[REDESIGNED in 3.0.0]**
   - Full support for REVM's `Inspector` trait
-  - Custom `TxInspector` for transaction analysis
-  - `TraceOutput` for flexible result formatting
-  - `TransactionProcessor` for standardized transaction handling
-  - `Reset` for state management
-- Enhanced inspector implementation
+  - Custom `TxInspector` for transaction analysis - **[COMPLETELY REWRITTEN in 3.0.0]**
+  - `TraceOutput` for flexible result formatting - **[ENHANCED in 3.0.0]**
+  - `TransactionProcessor` for standardized transaction handling - **[REDESIGNED in 3.0.0]**
+  - `Reset` for state management - **[IMPROVED in 3.0.0]**
+- Enhanced inspector implementation - **[MAJOR OVERHAUL in 3.0.0]**
   - Built on REVM's inspector system
   - Modular transaction analysis with `TxInspector`
   - Configurable trace collection
   - Improved state tracking
   - Easy integration with custom REVM inspectors
-- WebSocket provider support with dedicated builder
-- Batch transaction processing with state management
+- WebSocket provider support with dedicated builder - **[SIMPLIFIED in 3.0.0]**
+- Batch transaction processing with state management - **[REWRITTEN in 3.0.0]**
   - Stateful/stateless execution modes
   - Automatic state reset functionality
   - Concurrent execution support
 
-### Changed
-- Complete architecture redesign
-  - New builder pattern for EVM creation
-  - Improved error handling hierarchy
+### Changed - **[BREAKING CHANGES in 3.0.0]**
+- Complete architecture redesign - **[FURTHER REDESIGNED in 3.0.0]**
+  - New builder pattern for EVM creation - **[REPLACED with function-based API in 3.0.0]**
+  - Improved error handling hierarchy - **[ENHANCED in 3.0.0]**
   - Better separation of concerns
-  - More flexible configuration options
-- Enhanced transaction processing
+  - More flexible configuration options - **[SIMPLIFIED in 3.0.0]**
+- Enhanced transaction processing - **[MAJOR REWRITE in 3.0.0]**
   - Standardized execution flow
   - Improved error propagation
   - Better state management
-- Modular inspector system
+- Modular inspector system - **[REDESIGNED in 3.0.0]**
   - Customizable trace collection
   - Flexible output formatting
   - State management utilities
+
+### Migration Note
+⚠️  **This version is superseded by 3.0.0 which includes breaking changes to the core architecture, API design, and introduces native multi-threading support. See 3.0.0 migration guide above.**
 
 ### Improved
 - Documentation and examples

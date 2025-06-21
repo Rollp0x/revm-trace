@@ -1,25 +1,47 @@
-# REVM Transaction Simulator and Analyzer
+# REVM Transaction Simulator and Analyzer v3.0
 
-A Rust library that combines powerful transaction simulation with comprehensive analysis capabilities for EVM-based blockchains. Built on [REVM](https://github.com/bluealloy/revm), this tool enables you to:
+A high-performance, **multi-threaded** Rust library that combines powerful transaction simulation with comprehensive analysis capabilities for EVM-based blockchains. Built on [REVM](https://github.com/bluealloy/revm), this tool enables you to:
 
 - **Simulate** complex transactions and their interactions before actual execution
-- **Analyze** potential outcomes, asset transfers, and state changes
+- **Analyze** potential outcomes, asset transfers, and state changes  
 - **Detect** possible errors and their root causes
 - **Preview** all transaction effects in a safe, isolated environment
+- **Process** multiple transactions concurrently with built-in thread safety
 
 Perfect for:
 - DeFi developers testing complex interactions
 - Wallet developers validating transaction safety
 - Protocol teams analyzing contract behaviors
 - Security researchers investigating transaction patterns
+- High-throughput applications requiring concurrent transaction processing
+
+## 🚀 What's New in v3.0
+
+- **🔥 Multi-Threading by Default**: All EVM instances are now thread-safe and optimized for concurrent processing
+- **⚡ Dual EVM Modes**: Choose between high-performance execution or detailed tracing based on your needs
+- **🎯 Simplified API**: Unified interface with `create_evm()` and `create_evm_with_tracer()` functions
+- **🌐 Universal Protocol Support**: Seamless HTTP/WebSocket support with automatic connection management
 
 ## Key Features
 
+- **Dual EVM Mode Support**
+  - **Standard EVM**: Ultra-fast execution without tracing (`create_evm()`)
+  - **Tracing EVM**: Full transaction analysis with comprehensive trace data (`create_evm_with_tracer()`)
+  - Seamless switching between modes based on your requirements
+  - Built-in thread safety for concurrent processing
+
+- **Multi-Threading by Default**
+  - All EVM instances are thread-safe out of the box
+  - Shared cache database for optimal performance
+  - Concurrent transaction simulation and analysis
+  - Optimized for high-throughput applications
+
 - **Flexible Inspector System**
   - Built on REVM's inspector framework
-  - Custom `TxInspector` for transaction analysis
+  - Custom `TxInspector` for detailed transaction analysis
   - Support for custom inspector implementations
   - Comprehensive asset transfer tracking
+  - Optional no-op inspector for performance-critical scenarios
 
 - **Complete Call Hierarchy Analysis**
   - Full depth call stack tracking
@@ -70,7 +92,7 @@ By default, this library uses the system's native TLS implementation (typically 
 ```toml
 # In your Cargo.toml
 [dependencies]
-revm-trace = { version = "2.0.6", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "3.0.0", default-features = false, features = ["rustls-tls"] }
 ```
 
 To run examples with rustls-tls:
@@ -88,28 +110,29 @@ This is particularly useful for:
 
 Add this to your `Cargo.toml`:
 ```toml
-revm-trace = "2.0.6"
+[dependencies]
+revm-trace = "3.0.0"
 ```
 
 ## Quick Start
 
+REVM-Trace v3.0 provides two distinct EVM modes to match your specific use case:
+
+### 🚀 Mode 1: Standard EVM (High Performance)
+
+Use `create_evm()` when you need **maximum speed** and only require execution results:
+
 ```rust
 use revm_trace::{
-    TransactionProcessor,
-    evm::create_evm_with_inspector,
-    types::{BlockEnv, SimulationTx, SimulationBatch},
-    inspectors::TxInspector,
+    create_evm, 
+    types::{SimulationTx, SimulationBatch},
 };
 use alloy::primitives::{address, U256, TxKind};
 
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize EVM with transaction inspector
-    let mut evm = create_evm_with_inspector(
-        "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
-        TxInspector::new(),
-    ).await?;
+    // Create high-performance EVM (no tracing overhead)
+    let mut evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
 
     // Create simulation transaction
     let tx = SimulationTx {
@@ -119,40 +142,22 @@ async fn main() -> anyhow::Result<()> {
         data: vec![].into(),
     };
 
-    // Create batch with single transaction
     let batch = SimulationBatch {
-        block_env: BlockEnv {
-            number: 21784863,
-            timestamp: 1700000000,
-        },
+        block_env: None,
         transactions: vec![tx],
         is_stateful: false,
     };
 
-    // Execute transaction batch
-    let results = evm.process_transactions(batch)
-        .into_iter()
-        .map(|v| v.unwrap())
-        .collect::<Vec<_>>();
-
-    // Process results
-    for (execution_result, inspector_output) in results {
-        match execution_result.is_success() {
-            true => {
-                println!("Transaction succeeded!");
-                for transfer in inspector_output.asset_transfers {
-                    println!(
-                        "Transfer: {} from {} to {}",
-                        transfer.value, transfer.from, transfer.to.unwrap()
-                    );
-                }
+    // ⚡ Ultra-fast execution - perfect for high-throughput scenarios
+    let results = evm.execute_batch(batch);
+    
+    for result in results {
+        match result {
+            Ok(execution_result) => {
+                println!("✅ Transaction succeeded!");
+                println!("Gas used: {}", execution_result.gas_used());
             }
-            false => {
-                println!("Transaction failed!");
-                if let Some(error_trace) = inspector_output.error_trace_address {
-                    println!("Error occurred at call depth: {}", error_trace.len());
-                }
-            }
+            Err(e) => println!("❌ Transaction failed: {}", e),
         }
     }
 
@@ -160,58 +165,178 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-## Batch Contract Calls with Multicall
+### 🔍 Mode 2: Tracing EVM (Full Analysis)
+
+Use `create_evm_with_tracer()` when you need **comprehensive analysis** with detailed trace data:
+
+```rust
+use revm_trace::{
+    create_evm_with_tracer,
+    TxInspector,
+    types::{SimulationTx, SimulationBatch},
+    traits::TransactionTrace,
+};
+use alloy::primitives::{address, U256, TxKind};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Create tracing EVM with comprehensive analysis
+    let tracer = TxInspector::new();
+    let mut evm = create_evm_with_tracer(
+        "https://eth-mainnet.g.alchemy.com/v2/your-api-key",
+        tracer
+    ).await?;
+
+    let tx = SimulationTx {
+        caller: address!("C255fC198eEdAC7AF8aF0f6e0ca781794B094A61"),
+        transact_to: TxKind::Call(address!("d878229c9c3575F224784DE610911B5607a3ad15")),
+        value: U256::from(120000000000000000u64), // 0.12 ETH
+        data: vec![].into(),
+    };
+
+    let batch = SimulationBatch {
+        block_env: None,
+        transactions: vec![tx],
+        is_stateful: false,
+    };
+
+    // 🔍 Full tracing with detailed analysis
+    let results = evm.trace_transactions(batch);
+    
+    for result in results {
+        match result {
+        match result {
+            Ok((execution_result, trace_output)) => {
+                println!("✅ Transaction succeeded with full trace!");
+                println!("Gas used: {}", execution_result.gas_used());
+                
+                // 📊 Rich trace data analysis
+                for transfer in trace_output.asset_transfers {
+                    println!(
+                        "💰 Transfer: {} from {} to {:?}",
+                        transfer.value, transfer.from, transfer.to
+                    );
+                }
+                
+                // 📝 Complete call trace information
+                println!("📊 Call depth: {}", trace_output.call_traces.len());
+            }
+            Err(e) => println!("❌ Transaction failed: {}", e),
+        }
+    }
+
+    Ok(())
+}
+```
+
+### 🌐 WebSocket Support
+
+Both EVM modes support WebSocket connections for real-time blockchain data:
+
+```rust
+use revm_trace::{create_evm_ws, create_evm_ws_with_tracer, TxInspector};
+
+// High-performance EVM with WebSocket
+let evm = create_evm_ws("wss://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
+
+// Full tracing EVM with WebSocket  
+let tracer = TxInspector::new();
+let evm = create_evm_ws_with_tracer("wss://eth-mainnet.g.alchemy.com/v2/your-api-key", tracer).await?;
+```
+## 🔧 Batch Contract Calls with Multicall
 
 The library includes universal Multicall support that works on any EVM-compatible chain:
 
 ```rust
 use revm_trace::{
-    create_evm,
-    utils::multicall_utils::{MulticallManager, BatchCall},
-    types::BlockEnv,
+    create_evm,  // Use high-performance mode for batch calls
+    utils::multicall_utils::{MulticallManager, MulticallCall},
 };
-use alloy::primitives::{address, U256};
+use alloy::primitives::{address, Bytes};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Create EVM instance (no inspector needed for batch calls)
-    let mut evm = create_evm("https://eth.llamarpc.com").await?;
+    // Create standard EVM (perfect for batch operations)
+    let mut evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
     
-    // Create Multicall manager
+    // Create multicall manager
     let multicall = MulticallManager::new();
     
-    // Define batch calls (e.g., ERC20 balance queries)
+    // Define batch calls
     let calls = vec![
-        BatchCall {
-            target: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"), // USDC
-            call_data: /* balanceOf call data */.into(),
+        MulticallCall {
+            target: address!("A0b86a33E6417c6d87c632B8de2C6D1Ce31A67Ba"), // USDC
+            callData: Bytes::from(/* balanceOf call data */),
         },
-        BatchCall {
+        MulticallCall {
             target: address!("dAC17F958D2ee523a2206206994597C13D831ec7"), // USDT  
-            call_data: /* balanceOf call data */.into(),
+            callData: Bytes::from(/* balanceOf call data */),
         },
     ];
     
-    // Execute batch calls
+    // Execute batch calls with automatic deployment
     let results = multicall.deploy_and_batch_call(
         &mut evm,
         calls,
-        BlockEnv { number: 19000000, timestamp: 1700000000 },
         false, // Allow individual call failures
+        None,  // Use current block
     )?;
     
     // Process results
     for (i, result) in results.iter().enumerate() {
         if result.success {
-            let balance = U256::from_be_slice(&result.return_data);
-            println!("Token {}: Balance = {}", i, balance);
+            println!("Call {}: Success - {:?}", i, result.returnData);
         } else {
-            println!("Token {}: Call failed", i);
+            println!("Call {}: Failed", i);
         }
+    }
+
+    Ok(())
+}
+```
+
+## 🚀 Multi-Threading & Concurrent Processing
+
+REVM-Trace v3.0 is designed from the ground up for **high-performance concurrent processing**:
+
+```rust
+use revm_trace::{create_evm, types::SimulationBatch};
+use std::sync::Arc;
+use tokio::task;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // 🔥 Each task gets its own high-performance EVM instance
+    let mut handles = vec![];
+    
+    for i in 0..10 {
+        let handle = task::spawn(async move {
+            // Create dedicated EVM instance per thread (recommended pattern)
+            let mut evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
+            let batch = create_simulation_batch(i); // Your batch creation logic
+            evm.execute_batch(batch)
+        });
+        handles.push(handle);
+    }
+    
+    // Collect all results concurrently
+    for handle in handles {
+        let results = handle.await??;
+        // Process results...
     }
     
     Ok(())
 }
+```
+
+### 🎯 Performance Tips
+
+| Scenario | Recommended Mode | Why |
+|----------|------------------|-----|
+| High-frequency trading simulations | `create_evm()` | Maximum speed, minimal overhead |
+| DeFi protocol analysis | `create_evm_with_tracer()` | Rich trace data for comprehensive analysis |  
+| Batch processing | `create_evm()` + concurrent tasks | Optimal throughput |
+| Transaction debugging | `create_evm_with_tracer()` | Detailed error traces and call stacks |
 ```
 
 
@@ -245,94 +370,77 @@ For a quick overview, here are some key examples:
 
 ## Important Notes
 
-### Safe Simulation Environment
+## 🛡️ Thread Safety in v3.0
+
+### ✅ What's New: Built-in Multi-Threading Support
+
+REVM-Trace v3.0 introduces **native multi-threading capabilities** with optimized concurrent processing patterns:
+
+```rust
+use revm_trace::{create_evm, create_evm_with_tracer, TxInspector};
+use tokio::task;
+
+// ✅ Recommended: Each task creates its own EVM instance
+async fn concurrent_processing() -> anyhow::Result<()> {
+    let handles: Vec<_> = (0..10)
+        .map(|i| {
+            task::spawn(async move {
+                // Each thread gets optimized EVM instance
+                let mut evm = create_evm("https://rpc-url").await?;
+                // Process transactions...
+                Ok(())
+            })
+        })
+        .collect();
+
+    // Await all concurrent tasks
+    for handle in handles {
+        handle.await??;
+    }
+    
+    Ok(())
+}
+```
+
+### 🚀 Performance Patterns
+
+| Pattern | v3.0 Recommendation | Performance |
+|---------|-------------------|-------------|
+| **Single-threaded** | `create_evm()` or `create_evm_with_tracer()` | ⭐⭐⭐ Good |
+| **Multi-threaded** | One EVM per thread | ⭐⭐⭐⭐⭐ Excellent |
+| **High-throughput** | `create_evm()` + concurrent tasks | ⭐⭐⭐⭐⭐ Maximum |
+
+### ⚠️ Migration from v2.x
+
+In v2.x, EVM instances required careful handling for concurrency. **v3.0 eliminates these concerns**:
+
+```rust
+// ❌ v2.x: Complex shared state management
+// let evm = Arc::new(Mutex::new(create_evm().await?));
+
+// ✅ v3.0: Simple per-thread instances
+let mut evm = create_evm("https://rpc-url").await?;
+```
+## 🛡️ Safe Simulation Environment
 
 All simulations run in an isolated environment:
-- No actual blockchain state is modified
-- No real transactions are submitted
-- No gas fees are spent
-- Perfect for testing and validation
+- ✅ No actual blockchain state is modified
+- ✅ No real transactions are submitted  
+- ✅ No gas fees are spent
+- ✅ Perfect for testing and validation
+- ✅ Full rollback support for complex scenarios
 
-### Thread Safety and Concurrency
+### 📈 Performance Considerations
 
-The EVM instance is not thread-safe and cannot be shared between threads. Here's how to handle concurrent operations:
+- **RPC Optimization**: Each EVM instance maintains optimized RPC connections
+- **Memory Efficiency**: Smart caching reduces memory footprint
+- **Concurrent Processing**: Built-in support for high-throughput scenarios
+- **Resource Management**: Automatic cleanup and connection pooling
 
-##### ❌ What NOT to do
-
-```rust
-// DON'T share a single EVM instance across threads
-let mut evm = create_evm_with_inspector("https://rpc...", TxInspector::new()).await?;
-let results: Vec<_> = transactions
-  .par_iter() // ❌ This will fail - EVM instance is not thread-safe
-  .map(|tx| {
-    evm.process_transactions(SimulationBatch {
-      block_env: block_env.clone(),
-      transactions: vec![tx.clone()],
-      is_stateful: true,
-    }) // Sharing EVM across threads
-  })
-  .collect();
-```
-
-##### ✅ Correct Usage
-
-1. **Sequential Processing**
-
-```rust
-// Process transactions sequentially with a single EVM instance
-let mut evm = create_evm_with_inspector("https://rpc...", TxInspector::new()).await?;
-let results: Vec<_> = transactions
-  .iter()
-  .map(|tx| {
-    evm.process_transactions(SimulationBatch {
-        block_env: block_env.clone(),
-        transactions: vec![tx.clone()],
-        is_stateful: true,
-      })
-    })
-  .collect();
-```
-
-2. **Parallel Processing with Multiple Instances**
-
-```rust
-use rayon::prelude::*;
-// Create new EVM instance for each thread
-let results: Vec<Result<_, _>> = transactions
-  .par_iter()
-  .map(|tx| async {
-    // Each thread gets its own EVM instance
-    let mut evm = create_evm_with_inspector("https://rpc...", TxInspector::new()).await?;
-    evm.process_transactions(SimulationBatch {
-      block_env: block_env.clone(),
-      transactions: vec![tx.clone()],
-      is_stateful: true,
-    })
-  })
-  .collect();
-```
-
-
-
-#### Performance Considerations
-
-- **RPC Limitations**: 
-
-  - Each EVM instance maintains its own RPC connection
-  - Consider your RPC provider's connection and rate limits
-  - Too many parallel instances might exceed provider limits
-
-- **Resource Usage**:
-  - Each EVM instance requires its own memory
-  - Balance parallelism with resource constraints
-  - Monitor system memory usage when scaling
-
-- **Optimal Approach**:
-  - For small batches: Use sequential processing
-  
-  - For large batches: Use parallel processing with connection pooling
-  
-  - Consider implementing a worker pool pattern for better resource management
+**Recommended Patterns**:
+- Small batches: Use single EVM instance with `execute_batch()`
+- Large batches: Use multiple EVM instances across threads  
+- Real-time processing: Use WebSocket connections with `create_evm_ws()`
   
     
 
@@ -366,11 +474,11 @@ Simulations can be run against different historical states:
 - Historical blocks: Requires archive node access
 - Future blocks: Uses latest state as base
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
+## 📄 License
 
 This project is licensed under either of
 
@@ -379,7 +487,13 @@ This project is licensed under either of
 
 at your option.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
-Built with [REVM](https://github.com/bluealloy/revm) and [Alloy](https://github.com/alloy-rs/alloy)
+Built with ❤️ using:
+- [REVM](https://github.com/bluealloy/revm) - The Rust Ethereum Virtual Machine
+- [Alloy](https://github.com/alloy-rs/alloy) - High-performance Ethereum library
+
+---
+
+**REVM-Trace v3.0** - *Multi-threaded EVM simulation with comprehensive analysis*
 

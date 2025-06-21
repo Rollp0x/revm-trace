@@ -7,7 +7,6 @@ description = "Research project for REVM multi-threading with latest alloy and f
 license = "MIT OR Apache-2.0"
 
 [features]
-default = []
 full = []
 
 

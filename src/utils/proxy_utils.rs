@@ -83,13 +83,11 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 /// # Example
 /// ```no_run
 /// use revm_trace::utils::proxy_utils::get_implementation;
-/// use revm_trace::{EvmBuilder, TxInspector};
+/// use revm_trace::create_evm;
 /// use alloy::primitives::address;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let inspector = TxInspector::new();
-/// let builder = EvmBuilder::new("https://eth.llamarpc.com".to_string(), inspector);
-/// let mut evm = builder.build().await?;
+/// let mut evm = create_evm("https://eth.llamarpc.com").await?;
 /// 
 /// // USDT proxy contract
 /// let proxy = address!("dac17f958d2ee523a2206206994597c13d831ec7");

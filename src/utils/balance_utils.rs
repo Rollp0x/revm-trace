@@ -23,29 +23,29 @@ use crate::{
 /// # Arguments
 /// - `evm`: EVM instance for state queries
 /// - `owner`: Address to query balance for
-/// - `block_params`: Optional block number/timestamp to query at
+/// - `block_env`: Optional block environment to query at
 ///
 /// # Returns
 /// - `Ok(U256)`: Account balance in wei
 /// - `Err(BalanceError)`: If balance query fails
 ///
 /// # Example
-/// ```rust,no_run
-/// # use revm_trace::utils::balance_utils::query_balancee;
-/// # use alloy::primitives::address;
-/// use revm_trace::evm::builder::EvmBuilder;
-/// use revm::inspector::NoOpInspector;
+/// ```no_run
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use revm_trace::{create_evm, utils::balance_utils::query_balance};
+/// use alloy::primitives::address;
 ///
-/// let builder = EvmBuilder::new(
-///     "https://eth-mainnet.g.alchemy.com/v2/your-key".to_string(),
-///     NoOpInspector
-/// );
-/// let mut evm = builder.build().await.unwrap();
-/// let balance = query_balancee(&mut evm, address!("DFd5293D8e347dFe59E90eFd55b2956a1343963d"), None)?;
+/// let mut evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-key").await?;
+/// let balance = query_balance(
+///     &mut evm, 
+///     address!("DFd5293D8e347dFe59E90eFd55b2956a1343963d"), 
+///     None
+/// )?;
 /// println!("Balance: {} wei", balance);
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
-pub fn query_balancee<DB, INSP>(
+pub fn query_balance<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     owner: Address,
     block_env:Option<BlockEnv>

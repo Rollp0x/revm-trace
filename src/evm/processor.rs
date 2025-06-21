@@ -20,7 +20,11 @@ use revm::{
 use crate::errors::{EvmError, RuntimeError};
 use crate::traits::TraceInspector;
 
-
+impl<DB, INSP> TraceEvm<DB, INSP> 
+where
+    DB: Database + DatabaseCommit,
+    INSP: TraceInspector<MainnetContext<DB>> + Clone,
+{
     /// Process a single transaction with tracing
     ///
     /// Internal method that handles the execution of a single transaction,
@@ -35,29 +39,29 @@ use crate::traits::TraceInspector;
     ///
     /// # Implementation Details
     /// 1. Resets inspector state before execution
-    /// 2. Builds transaction environment from input
-    /// 3. Executes transaction with commit
-    /// 4. Collects inspector output
-impl<DB, INSP> TraceEvm<DB, INSP> 
-where
-    DB: Database + DatabaseCommit,
-    INSP: TraceInspector<MainnetContext<DB>> + Clone,
-{
+    /// 2. Fetches current nonce from account state
+    /// 3. Builds transaction environment from input parameters
+    /// 4. Executes transaction with inspector and commits changes
+    /// 5. Collects and returns inspector output
+    ///
+    /// # Note
+    /// This method is internal and should not be called directly.
+    /// Use `trace_transactions` or `execute_batch` instead.
     fn trace_internal(
         &mut self,
         input: SimulationTx,
     ) -> Result<(ExecutionResult, INSP::Output), RuntimeError> {
-        // 重置 inspector 状态
+        // Reset inspector state before processing
         self.reset_inspector();
         
-        // 获取当前 nonce
+        // Fetch current nonce for the transaction sender
         let nonce = self.db()
             .basic(input.caller)
             .map_err(|e| RuntimeError::ExecutionFailed(format!("Failed to get account info: {}", e)))?
             .map(|acc| acc.nonce)
             .unwrap_or_default();
         
-        // 构建交易环境
+        // Build transaction environment
         let tx = TxEnv::builder()
             .caller(input.caller)
             .value(input.value)
@@ -66,18 +70,20 @@ where
             .nonce(nonce)
             .build_fill();
             
+        // Clone inspector for execution
         let inspector = self.clone_inspector();
 
-        let r = self.inspect_commit(tx, inspector)
+        // Execute transaction with inspector and commit changes
+        let result = self.inspect_commit(tx, inspector)
             .map_err(|e| RuntimeError::ExecutionFailed(format!("Inspector execution failed: {}", e)))?;
             
-        // 收集 inspector 输出
+        // Collect inspector output
         let output = self.get_inspector_output();
-        Ok((r, output))
+        Ok((result, output))
     }
 }
 
-/// Implementation of TransactionProcessor trait for batch processing
+/// Implementation of TransactionTrace trait for batch processing
 impl<DB, INSP> TransactionTrace<MainnetContext<CacheDB<DB>>> for TraceEvm<CacheDB<DB>, INSP> 
 where
     DB: DatabaseRef,
@@ -95,23 +101,39 @@ where
     /// * `batch` - Batch containing block parameters, transactions, and execution mode
     ///
     /// # Returns
-    /// Vector of results, one for each transaction in the batch
+    /// Vector of results, one for each transaction in the batch.
+    /// Each result contains the execution result and inspector output.
     ///
     /// # Execution Modes
     /// - **Stateful** (`is_stateful = true`): State persists between transactions
     /// - **Stateless** (`is_stateful = false`): Database resets between transactions
     ///
     /// # Implementation Details
-    /// 1. Sets block environment if provided
-    /// 2. Resets database to clean state
-    /// 3. Processes each transaction in sequence
+    /// 1. Sets block environment if provided in batch parameters
+    /// 2. Resets database to clean state before processing
+    /// 3. Processes each transaction in sequence using `trace_internal`
     /// 4. Manages state persistence based on `is_stateful` flag
-    /// 5. Resets inspector after batch completion
+    /// 5. Resets inspector state after batch completion
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use revm_trace::*;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let tracer = TxInspector::new();
+    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
+    /// let batch = SimulationBatch {
+    ///     block_env: None,
+    ///     transactions: vec![/* transactions */],
+    ///     is_stateful: true,
+    /// };
+    /// let results = evm.trace_transactions(batch);
+    /// # Ok(())
+    /// # }
+    /// ```
     fn trace_transactions(
-            &mut self,
-            batch: SimulationBatch
-        ) -> Vec<Result<(ExecutionResult, <Self::Inspector as TraceOutput>::Output), EvmError>> 
-    {
+        &mut self,
+        batch: SimulationBatch
+    ) -> Vec<Result<(ExecutionResult, <Self::Inspector as TraceOutput>::Output), EvmError>> {
         
         let SimulationBatch {
             block_env,
@@ -145,12 +167,37 @@ where
         // 4. Clean up inspector state after batch completion
         self.reset_inspector();
         results
-
     }
 }
 
 impl DefaultEvm {
-    /// Execute transactions and return only execution results (ignore inspector output)
+    /// Execute a batch of transactions and return only execution results
+    ///
+    /// This is a convenience method for users who only need transaction execution
+    /// results without inspector output. It internally uses `trace_transactions`
+    /// but discards the inspector output (which is `()` for `NoOpInspector`).
+    ///
+    /// # Arguments
+    /// * `batch` - Batch of transactions to execute
+    ///
+    /// # Returns
+    /// Vector of execution results, one for each transaction in the batch
+    ///
+    /// # Example
+    /// ```no_run
+    /// # use revm_trace::*;
+    /// use revm_trace::errors::EvmError;
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut evm = create_evm("https://eth.llamarpc.com").await?;
+    /// let batch = SimulationBatch {
+    ///     block_env: None,
+    ///     transactions: vec![/* transactions */],
+    ///     is_stateful: false,
+    /// };
+    /// let results = evm.execute_batch(batch);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn execute_batch(
         &mut self,
         batch: SimulationBatch,

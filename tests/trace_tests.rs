@@ -24,7 +24,7 @@
 //! - Old blocks: Requires archive node access
 
 use revm_trace::{
-    create_evm_with_trace,
+    create_evm_with_tracer,
     TransactionTrace,
     utils::error_utils::parse_custom_error, 
     SimulationBatch, SimulationTx, TxInspector
@@ -103,7 +103,7 @@ const REVERT_DEMO_BYTECODE:&str = "0x608060405234801561001057600080fd5b506101098
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;
@@ -210,7 +210,7 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {  
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;
@@ -313,7 +313,7 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;
@@ -429,7 +429,7 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_multicall_with_error() -> anyhow::Result<()>   {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;
@@ -505,7 +505,7 @@ async fn test_multicall_with_error() -> anyhow::Result<()>   {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_create_contract() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await.unwrap();
@@ -541,7 +541,7 @@ async fn test_create_contract() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_stateful_and_stateless_call_trace() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await.unwrap();
@@ -606,7 +606,7 @@ async fn test_stateful_and_stateless_call_trace() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_wth_ws() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;

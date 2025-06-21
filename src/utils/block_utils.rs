@@ -20,8 +20,8 @@ use crate::types::BlockEnv;
 ///
 /// # Example
 /// ```rust
-/// # use revm_trace::utils::block_utils::create_block_env;
-/// let block = create_block_env(18_000_000, 1672531200, None, None);
+/// # use revm_trace::utils::block_utils::get_block_env;
+/// let block = get_block_env(18_000_000, 1672531200);
 /// ```
 pub fn get_block_env(
     block_number: u64,

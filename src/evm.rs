@@ -6,31 +6,25 @@
 //! ## Key Components
 //!
 //! - **`TraceEvm`**: Main wrapper struct that adds tracing capabilities to revm's EVM
-//! - **Type Aliases**: Convenient types for different database and inspector configurations
 //! - **Database Reset**: Utilities for clearing cache state between executions
+//! - **Inspector Integration**: Support for transaction tracing and analysis
 //!
 //! ## Usage Examples
 //!
-//! ```rust,no_run
-//! use revm_trace::evm::{TraceEvm, builder::EvmBuilder};
-//! use revm::inspector::NoOpInspector;
-//!
+//! ```no_run
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create a default EVM instance
-//! let evm = EvmBuilder::default_inspector(
-//!     "https://eth-mainnet.g.alchemy.com/v2/your-key".to_string()
-//! )
-//! .with_current_runtime()?
-//! .build()
-//! .await?;
+//! use revm_trace::create_evm;
 //!
-//! // Or create a multi-threaded EVM
-//! #[cfg(feature = "multi-threading")]
-//! let shared_evm = EvmBuilder::default_inspector(
-//!     "https://eth-mainnet.g.alchemy.com/v2/your-key".to_string()
-//! )
-//! .build_shared()
-//! .await?;
+//! // Create a default EVM instance (no tracing)
+//! let evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-key").await?;
+//!
+//! // Create an EVM with custom tracer
+//! use revm_trace::{create_evm_with_tracer, TxInspector};
+//! let tracer = TxInspector::new();
+//! let evm_with_tracer = create_evm_with_tracer(
+//!     "https://eth-mainnet.g.alchemy.com/v2/your-key", 
+//!     tracer
+//! ).await?;
 //! # Ok(())
 //! # }
 //! ```
@@ -46,6 +40,7 @@ pub use revm::{
 };
 use std::ops::{Deref, DerefMut};
 use crate::ResetDB;
+
 // Sub-modules for EVM functionality
 pub mod builder;
 pub mod processor;
@@ -65,31 +60,28 @@ pub mod inspector;
 ///
 /// # Examples
 ///
-/// ```rust,no_run
-/// use revm_trace::evm::{TraceEvm, builder::EvmBuilder};
-/// use revm::inspector::NoOpInspector;
-///
+/// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-/// let evm = EvmBuilder::default_inspector(
-///     "https://eth-mainnet.g.alchemy.com/v2/your-key".to_string()
-/// )
-/// .build()
-/// .await?;
+/// use revm_trace::create_evm;
 ///
-/// // Use evm for transaction execution...
+/// // Create a basic EVM instance
+/// let evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-key").await?;
+///
+/// // Create an EVM with custom tracer
+/// use revm_trace::{create_evm_with_tracer, TxInspector};
+/// let tracer = TxInspector::new();
+/// let evm_with_tracer = create_evm_with_tracer(
+///     "https://eth-mainnet.g.alchemy.com/v2/your-key", 
+///     tracer
+/// ).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub struct TraceEvm<DB:Database, INSP>
-(
-    MainnetEvm<
-        MainnetContext<DB>,
-        INSP
-    >
+pub struct TraceEvm<DB: Database, INSP>(
+    MainnetEvm<MainnetContext<DB>, INSP>
 );
 
- 
-impl <DB,INSP> TraceEvm<DB, INSP>
+impl<DB, INSP> TraceEvm<DB, INSP>
 where
     DB: Database,
 {
@@ -107,19 +99,20 @@ where
     ///
     /// # Example
     /// ```no_run
-    /// use revm_trace::{TraceEvm, EvmBuilder, TxInspector};
-    /// use revm::{Context, MainnetEvm, inspector::NoOpInspector};
-    /// use revm::handler::MainnetContext;
-    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// // Method 1: Using EvmBuilder (recommended)
-    /// let inspector = TxInspector::new();
-    /// let builder = EvmBuilder::new("https://eth.llamarpc.com".to_string(), inspector);
-    /// let trace_evm = builder.build().await?; // Already returns TraceEvm
+    /// use revm_trace::{create_evm_with_tracer, TxInspector};
+    /// use revm::{Context, MainnetEvm};
     ///
-    /// // Method 2: Wrapping an existing MainnetEvm
-    /// // let ctx = Context::build_mainnet().with_db(...);
-    /// // let evm = ctx.build_mainnet_with_inspector(NoOpInspector);
+    /// // Recommended: Use the builder functions
+    /// let tracer = TxInspector::new();
+    /// let trace_evm = create_evm_with_tracer(
+    ///     "https://eth.llamarpc.com", 
+    ///     tracer
+    /// ).await?; // Already returns TraceEvm
+    ///
+    /// // Alternative: Wrap an existing MainnetEvm (advanced usage)
+    /// // let ctx = Context::mainnet().with_db(...);
+    /// // let evm = ctx.build_mainnet_with_inspector(tracer);
     /// // let trace_evm = TraceEvm::new(evm);
     /// # Ok(())
     /// # }
@@ -133,7 +126,7 @@ where
 ///
 /// This implementation allows `TraceEvm` to be used as a drop-in replacement
 /// for `MainnetEvm` by providing direct access to all its methods and fields.
-impl <DB,INSP> Deref for TraceEvm<DB, INSP>
+impl<DB, INSP> Deref for TraceEvm<DB, INSP>
 where
     DB: Database,
 {
@@ -142,13 +135,13 @@ where
     fn deref(&self) -> &Self::Target {
         &self.0
     }
-}   
+}
 
 /// Mutable access to the underlying MainnetEvm
 ///
 /// This implementation allows modification of the underlying EVM state
 /// and configuration through the `TraceEvm` wrapper.
-impl <DB,INSP> DerefMut for TraceEvm<DB, INSP>
+impl<DB, INSP> DerefMut for TraceEvm<DB, INSP>
 where
     DB: Database,
 {
@@ -156,8 +149,6 @@ where
         &mut self.0
     }
 }
-
-
 
 // ========================= Database Management =========================
 
@@ -189,13 +180,18 @@ where
     /// until the cache is repopulated.
     ///
     /// # Example
-    /// ```rust,no_run
-    /// # use revm_trace::evm::AlloyTraceEvm;
-    /// # let mut evm: AlloyTraceEvm = todo!();
+    /// ```no_run
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// use revm_trace::{create_evm, traits::ResetDB};
+    /// 
+    /// let mut evm = create_evm("https://eth.llamarpc.com").await?;
+    /// 
     /// // Clear cache before processing a new batch of transactions
     /// evm.reset_db();
+    /// # Ok(())
+    /// # }
     /// ```
-    fn reset_db(&mut self){
+    fn reset_db(&mut self) {
         let cached_db = &mut self.0.ctx.db().cache;
         cached_db.accounts.clear();
         cached_db.contracts.clear();

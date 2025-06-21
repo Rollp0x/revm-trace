@@ -5,51 +5,48 @@
 //! ## Core Features
 //!
 //! - **Transaction Simulation**
-//!   - Detailed execution traces
-//!   - Asset transfer tracking
-//!   - Call hierarchy analysis
-//!   - Error origin detection
+//!   - Batch transaction processing
+//!   - Stateful and stateless execution modes
+//!   - Detailed execution traces with inspector support
+//!   - Error handling and propagation
 //!
-//! - **Asset Tracking**
-//!   - Native token transfers
-//!   - ERC20 token transfers
-//!   - Token metadata collection
+//! - **Multi-Protocol Support**
+//!   - HTTP and WebSocket RPC connections
+//!   - Automatic protocol detection
+//!   - Any EVM-compatible chain support
+//!   - Built-in rustls TLS support
 //!
-//! - **Execution Analysis**
-//!   - Complete call traces
-//!   - Event logs collection
-//!   - State change tracking
-//!   - Error propagation analysis
+//! - **Flexible Inspector System**
+//!   - Custom transaction tracers
+//!   - NoOp inspector for simple execution
+//!   - Extensible inspector trait system
 //!
-//! ## Features
+//! ## Installation
 //!
-//! - `rustls-tls`: Uses rustls as the TLS implementation instead of native-tls (OpenSSL).
-//!   This is useful for environments where OpenSSL is not available or not desired.
+//! Add this to your `Cargo.toml`:
 //!
-//!   Usage example:
-//!   ```toml
-//!   [dependencies]
-//!   revm-trace = { version = "2.0.6", default-features = false, features = ["rustls-tls"] }
-//!   ```
+//! ```toml
+//! [dependencies]
+//! revm-trace = "3.0.0"
+//! ```
+//!
+//! The library uses rustls for TLS connections by default, providing secure
+//! and reliable connections without requiring OpenSSL.
 //! 
 //! ## Example Usage
 //!
-//! ```rust,no_run
+//! ### Basic Transaction Execution
+//!
+//! ```no_run
 //! use revm_trace::{
-//!     traits::TransactionProcessor,
-//!     evm::builder::EvmBuilder,
-//!     types::{BlockParams, SimulationTx, SimulationBatch},
-//!     inspectors::tx_inspector::TxInspector,
+//!     create_evm, 
+//!     types::{SimulationTx, SimulationBatch},
 //! };
 //! use alloy::primitives::{address, U256, TxKind};
 //!
-//! # async fn example() -> anyhow::Result<()> {
-//! // Initialize EVM with transaction inspector
-//! let mut evm = EvmBuilder::new(
-//!     "https://eth-mainnet.g.alchemy.com/v2/your-api-key"
-//! )
-//! .build()
-//! .await?;
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // Create EVM instance
+//! let mut evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
 //!
 //! // Create simulation transaction
 //! let tx = SimulationTx {
@@ -61,40 +58,100 @@
 //!
 //! // Create batch with single transaction
 //! let batch = SimulationBatch {
-//!     block_params: Some(BlockParams {
-//!         number: 21784863,
-//!         timestamp: 1700000000,
-//!     }),
+//!     block_env: None,
 //!     transactions: vec![tx],
 //!     is_stateful: false,
 //! };
 //!
-//! // Execute transaction batch
-//! let results = evm.process_transactions(batch)
-//!     .into_iter()
-//!     .map(|v| v.unwrap())
-//!     .collect::<Vec<_>>();
+//! // Execute transaction batch (simple execution)
+//! let results = evm.execute_batch(batch);
 //!
 //! // Process results
-//! for (execution_result, inspector_output) in results {
-//!     match execution_result {
-//!         revm::context_interface::result::ExecutionResult::Success { .. } => {
+//! for result in results {
+//!     match result {
+//!         Ok(execution_result) => {
 //!             println!("Transaction succeeded!");
-//!             for transfer in inspector_output.asset_transfers {
-//!                 println!(
-//!                     "Transfer: {} from {} to {}",
-//!                     transfer.value, transfer.from, transfer.to.unwrap()
-//!                 );
-//!             }
+//!             println!("Gas used: {}", execution_result.gas_used());
 //!         }
-//!         _ => {
-//!             println!("Transaction failed!");
-//!             if let Some(error_trace) = inspector_output.error_trace_address {
-//!                 println!("Error occurred at call depth: {}", error_trace.len());
-//!             }
+//!         Err(e) => {
+//!             println!("Transaction failed: {:?}", e);
 //!         }
 //!     }
 //! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### Advanced Usage with Custom Tracer
+//!
+//! ```no_run
+//! use revm_trace::{
+//!     create_evm_with_tracer, TxInspector,
+//!     types::{SimulationTx, SimulationBatch},
+//!     traits::TransactionTrace,
+//! };
+//! use alloy::primitives::{address, U256, TxKind};
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // Create EVM with custom tracer
+//! let tracer = TxInspector::new();
+//! let mut evm = create_evm_with_tracer(
+//!     "https://eth-mainnet.g.alchemy.com/v2/your-api-key", 
+//!     tracer
+//! ).await?;
+//!
+//! // Create simulation transaction
+//! let tx = SimulationTx {
+//!     caller: address!("C255fC198eEdAC7AF8aF0f6e0ca781794B094A61"),
+//!     transact_to: TxKind::Call(address!("d878229c9c3575F224784DE610911B5607a3ad15")),
+//!     value: U256::from(120000000000000000u64), // 0.12 ETH
+//!     data: vec![].into(),
+//! };
+//!
+//! // Create batch
+//! let batch = SimulationBatch {
+//!     block_env: None,
+//!     transactions: vec![tx],
+//!     is_stateful: false,
+//! };
+//!
+//! // Execute with tracing
+//! let results = evm.trace_transactions(batch);
+//!
+//! // Process results with inspector output
+//! for result in results {
+//!     match result {
+//!         Ok((execution_result, inspector_output)) => {
+//!             println!("Transaction succeeded!");
+//!             println!("Gas used: {}", execution_result.gas_used());
+//!             
+//!             // Process inspector output
+//!             for transfer in inspector_output.asset_transfers {
+//!                 println!(
+//!                     "Transfer: {} from {} to {:?}",
+//!                     transfer.value, transfer.from, transfer.to
+//!                 );
+//!             }
+//!         }
+//!         Err(e) => {
+//!             println!("Transaction failed: {:?}", e);
+//!         }
+//!     }
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ### WebSocket Connection
+//!
+//! ```no_run
+//! use revm_trace::create_evm_ws;
+//!
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! // Create EVM with WebSocket connection
+//! let mut evm = create_evm_ws("wss://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
+//!
+//! // Use the same way as HTTP connections
 //! # Ok(())
 //! # }
 //! ```
@@ -117,7 +174,7 @@ pub mod errors;
 
 // Re-export core types for easier access
 pub use inspectors::tx_inspector::TxInspector;
-pub use evm::{TraceEvm,builder::*};
+pub use evm::{TraceEvm, builder::*};
 pub use types::{BlockEnv, SimulationTx, SimulationBatch};
 pub use traits::*;
 

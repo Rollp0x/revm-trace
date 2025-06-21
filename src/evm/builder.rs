@@ -36,7 +36,7 @@ pub async fn get_http_provider(rpc_url:&str) -> Result<AnyNetworkProvider, EvmEr
 
 async fn create_evm_internal<INSP>(
     rpc_url:&str,
-    inspector: INSP
+    tracer: INSP
 ) -> Result<TraceEvm<CacheDB<SharedBackend>, INSP>, EvmError> {
     let provider = get_http_provider(rpc_url).await?;
     let chain_id = provider.get_chain_id().await
@@ -58,16 +58,17 @@ async fn create_evm_internal<INSP>(
     cfg.limit_contract_code_size = None;
     cfg.disable_block_gas_limit = true;
     cfg.disable_base_fee = true;
-    let evm = ctx.build_mainnet_with_inspector(inspector);
+    let evm = ctx.build_mainnet_with_inspector(tracer);
     Ok(TraceEvm::new(evm))
 }
 
 
-/// Create an EVM instance with HTTP provider (no trace_inspector)
+/// Create an EVM instance with HTTP provider (no tracer)
 /// 
 /// # Example
 /// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use revm_trace::create_evm;
 /// let evm = create_evm("https://eth.llamarpc.com").await?;
 /// # Ok(())
 /// # }
@@ -78,11 +79,12 @@ pub async fn create_evm(
     create_evm_internal(rpc_url, NoOpInspector).await
 }
 
-/// Create an EVM instance with WebSocket provider (no trace_inspector)
+/// Create an EVM instance with WebSocket provider (no tracer)
 /// 
 /// # Example  
 /// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use revm_trace::create_evm_ws;
 /// let evm = create_evm_ws("wss://eth.llamarpc.com").await?;
 /// # Ok(())
 /// # }
@@ -93,44 +95,46 @@ pub async fn create_evm_ws(
     create_evm_internal(rpc_url, NoOpInspector).await
 }
 
-/// Create an EVM instance with HTTP provider and custom trace_inspector
+/// Create an EVM instance with HTTP provider and custom tracer
 /// 
 /// # Example
 /// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use revm_trace::create_evm_with_tracer;
 /// use revm_trace::TxInspector;
-/// let trace_inspector = TxInspector::new();
-/// let evm = create_evm_with_trace("https://eth.llamarpc.com", trace_inspector).await?;
+/// let tracer = TxInspector::new();
+/// let evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub async fn create_evm_with_trace<INSP>(
+pub async fn create_evm_with_tracer<INSP>(
     rpc_url: &str,
-    trace_inspector: INSP,
+    tracer: INSP,
 ) -> Result<InspectorEvm<INSP>, EvmError>
 where
     INSP: TraceInspector<MainnetContext<CacheDB<SharedBackend>>> + Clone,
 {
-    create_evm_internal(rpc_url, trace_inspector).await
+    create_evm_internal(rpc_url, tracer).await
 }
 
-/// Create an EVM instance with WebSocket provider and custom trace_inspector
+/// Create an EVM instance with WebSocket provider and custom tracer
 /// 
 /// # Example
 /// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use revm_trace::create_evm_ws_with_tracer;
 /// use revm_trace::TxInspector;
-/// let trace_inspector = TxInspector::new();
-/// let evm = create_evm_ws_with_trace("wss://eth.llamarpc.com", trace_inspector).await?;
+/// let tracer = TxInspector::new();
+/// let evm = create_evm_ws_with_tracer("wss://mainnet.gateway.tenderly.co", tracer).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub async fn create_evm_ws_with_trace<INSP>(
+pub async fn create_evm_ws_with_tracer<INSP>(
     rpc_url: &str,
-    trace_inspector: INSP
+    tracer: INSP
 ) -> Result<InspectorEvm<INSP>, EvmError>
 where 
     INSP: TraceInspector<MainnetContext<CacheDB<SharedBackend>>> + Clone,
 {   
-    create_evm_internal(rpc_url, trace_inspector).await
+    create_evm_internal(rpc_url, tracer).await
 }

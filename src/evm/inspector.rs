@@ -19,11 +19,11 @@ where
     ///
     /// # Examples
     /// ```no_run
-    /// use revm_trace::{create_evm_with_trace, TxInspector};
+    /// use revm_trace::{create_evm_with_tracer, TxInspector};
     /// 
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let trace_inspector = TxInspector::new();
-    /// let mut evm = create_evm_with_trace("https://eth.llamarpc.com", trace_inspector).await?;
+    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
     /// 
     /// // After processing transactions...
     /// let trace_output = evm.get_inspector_output();
@@ -46,11 +46,11 @@ where
     ///
     /// # Examples
     /// ```no_run
-    /// use revm_trace::{create_evm_with_trace, TxInspector};
+    /// use revm_trace::{create_evm_with_tracer, TxInspector};
     /// 
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let trace_inspector = TxInspector::new();
-    /// let mut evm = create_evm_with_trace("https://eth.llamarpc.com", trace_inspector).await?;
+    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
     /// 
     /// // Process first transaction...
     /// // let result1 = evm.process_transaction(tx1).await?;
@@ -88,11 +88,11 @@ where
     /// 
     /// # Examples
     /// ```no_run
-    /// use revm_trace::{create_evm_with_trace, TxInspector};
+    /// use revm_trace::{create_evm_with_tracer, TxInspector};
     /// 
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let trace_inspector = TxInspector::new();
-    /// let mut evm = create_evm_with_trace("https://eth.llamarpc.com", trace_inspector).await?;
+    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
     /// 
     /// // Clone inspector for external analysis
     /// let inspector_copy = evm.clone_inspector();

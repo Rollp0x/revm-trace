@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 use revm_trace::{
-    create_evm_with_trace,
+    create_evm_with_tracer,
     TransactionTrace,
     types::{TokenInfo},
     utils::erc20_utils::get_token_infos,
@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
     // Create EVM instance with transaction tracing
     let inspector = TxInspector::new();
     // Create basic EVM instance without inspector
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector
     ).await?;

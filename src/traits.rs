@@ -280,17 +280,36 @@ pub trait ResetDB {
     fn reset_db(&mut self);
 }
 
+// ========================= NoOpInspector Implementations =========================
 
+/// Implementation of Reset trait for NoOpInspector
+/// 
+/// Since NoOpInspector doesn't maintain any internal state that needs to be reset,
+/// this is a no-operation implementation. This allows NoOpInspector to satisfy
+/// the Reset trait requirement for TraceInspector.
 impl Reset for NoOpInspector {
     fn reset(&mut self) {
-        // No operation for NoOpInspector
+        // No operation for NoOpInspector - it has no state to reset
     }
 }
+
+/// Implementation of TraceOutput trait for NoOpInspector
+/// 
+/// NoOpInspector produces no meaningful output, so this implementation returns
+/// the unit type `()`. This allows NoOpInspector to satisfy the TraceOutput
+/// trait requirement for TraceInspector.
 impl TraceOutput for NoOpInspector {
     type Output = ();
 
     fn get_output(&self) -> Self::Output {
-        // No output for NoOpInspector
+        // No output for NoOpInspector - returns unit type
         ()
     }
 }
+
+// Note: NoOpInspector automatically implements TraceInspector<CTX> through the blanket implementation:
+// impl<CTX, T> TraceInspector<CTX> for T 
+// where T: Inspector<CTX> + Reset + TraceOutput + Clone
+// 
+// Since NoOpInspector already implements Inspector<CTX> (from revm) and Clone (derive),
+// and we've implemented Reset and TraceOutput above, it automatically gets TraceInspector.

@@ -8,7 +8,7 @@
 //! - Display transfer information with proper token details
 
 use revm_trace::{
-    TransactionTrace,create_evm_with_trace,
+    TransactionTrace,create_evm_with_tracer,
     utils::erc20_utils::get_token_infos,
     SimulationBatch, SimulationTx, TxInspector
 };
@@ -43,7 +43,7 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 #[tokio::main]
 async fn main() -> Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;

@@ -1,5 +1,5 @@
 use revm_trace::{
-    create_evm_with_trace,
+    create_evm_with_tracer,
     utils::block_utils::get_block_env,
     TransactionTrace,
     types::{SimulationTx, SimulationBatch},
@@ -14,7 +14,7 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 async fn test_basic_usage() -> anyhow::Result<()> {
     // Initialize EVM with transaction inspector
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_trace(
+    let mut evm= create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;
