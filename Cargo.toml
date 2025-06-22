@@ -11,10 +11,6 @@ keywords = ["evm", "blockchain", "simulation", "multithreading", "tracing"]
 categories = ["development-tools", "simulation"]
 readme = "README.md"
 
-[features]
-full = []
-
-
 [dependencies]
 # Latest versions for research
 revm = { version = "24.0.1", features = [
