@@ -234,14 +234,14 @@ async fn main() -> anyhow::Result<()> {
 Both EVM modes support WebSocket connections for real-time blockchain data:
 
 ```rust
-use revm_trace::{create_evm_ws, create_evm_ws_with_tracer, TxInspector};
+use revm_trace::{create_evm, create_evm_with_tracer, TxInspector};
 
-// High-performance EVM with WebSocket
-let evm = create_evm_ws("wss://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
+// High-performance EVM with WebSocket (auto-detected from URL)
+let evm = create_evm("wss://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
 
-// Full tracing EVM with WebSocket  
+// Full tracing EVM with WebSocket (auto-detected from URL)
 let tracer = TxInspector::new();
-let evm = create_evm_ws_with_tracer("wss://eth-mainnet.g.alchemy.com/v2/your-api-key", tracer).await?;
+let evm = create_evm_with_tracer("wss://eth-mainnet.g.alchemy.com/v2/your-api-key", tracer).await?;
 ```
 ## 🔧 Batch Contract Calls with Multicall
 
@@ -439,7 +439,7 @@ All simulations run in an isolated environment:
 **Recommended Patterns**:
 - Small batches: Use single EVM instance with `execute_batch()`
 - Large batches: Use multiple EVM instances across threads  
-- Real-time processing: Use WebSocket connections with `create_evm_ws()`
+- Real-time processing: Use WebSocket connections with `create_evm("wss://...")"`
   
     
 

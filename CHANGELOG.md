@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2025-06-21
+## [3.0.0] - 2025-06-22
 
 ### 🚀 Major Architecture Overhaul
 This version represents a **complete rewrite** of the library with breaking changes to provide better performance, simplified APIs, and native multi-threading support.
@@ -18,8 +18,8 @@ This version represents a **complete rewrite** of the library with breaking chan
   - Support for high-throughput parallel transaction processing
 
 - **⚡ Dual EVM Mode Architecture**
-  - **Standard EVM Mode**: Ultra-fast execution with `create_evm()` and `create_evm_ws()`
-  - **Tracing EVM Mode**: Comprehensive analysis with `create_evm_with_tracer()` and `create_evm_ws_with_tracer()`
+  - **Standard EVM Mode**: Ultra-fast execution with `create_evm()` (supports both HTTP and WebSocket)
+  - **Tracing EVM Mode**: Comprehensive analysis with `create_evm_with_tracer()` (supports both HTTP and WebSocket)
   - Clear separation between performance-critical and analysis scenarios
   - `NoOpInspector` for zero-overhead execution in standard mode
 

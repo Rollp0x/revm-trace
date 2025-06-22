@@ -2,9 +2,14 @@
 name = "revm-trace"
 version = "3.0.0"
 edition = "2021"
-authors = ["Research Project"]
-description = "Research project for REVM multi-threading with latest alloy and foundry-fork-db"
+authors = ["REVM-Trace Contributors"]
+description = "High-performance multi-threaded EVM transaction simulator and analyzer with comprehensive tracing capabilities"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/Rollp0x/revm-trace"
+homepage = "https://github.com/Rollp0x/revm-trace"
+keywords = ["evm", "blockchain", "simulation", "multithreading", "tracing"]
+categories = ["development-tools", "simulation"]
+readme = "README.md"
 
 [features]
 full = []
