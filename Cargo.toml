@@ -40,8 +40,8 @@ thiserror = "1.0"
 
 [dev-dependencies]
 tokio-test = "0.4"
-colored = "*"
-prettytable = "*"
+colored = "2.0"
+prettytable = "0.10"
 # actix-web integration dependencies
 actix-web = "4.4"
 env_logger = "0.10"
