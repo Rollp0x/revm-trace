@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.1] - 2025-06-22
+
+### 🎯 TxInspector Enhanced Support
+
+#### New Features
+- **Added specialized `get_inspector()` method for `TraceEvm<DB, TxInspector>`**
+  - Provides direct access to TxInspector-specific methods without type erasure
+  - Enables access to all TxInspector methods: `get_transfers()`, `get_traces()`, `get_logs()`, `get_error_trace_address()`, `find_error_trace()`
+  - Solves the generic type access problem for advanced users who need full TxInspector functionality
+
+#### Documentation Improvements
+- **Comprehensive documentation overhaul**
+  - Added clear explanation of three usage modes: Simple Execution, Manual Inspector Control, Automatic Batch Processing
+  - Emphasized critical REVM API change: `evm.transact(tx)` does NOT execute Inspector
+  - Added explicit requirement for `evm.inspect_replay_commit()` to activate Inspector
+  - Included detailed mode selection guide and performance considerations
+- **Enhanced code examples**
+  - Added complete examples for all three usage modes
+  - Fixed all import statements and API usage
+  - Included error tracing examples and best practices
+
+#### Key Insights
+- **TxInspector is the core value proposition** - specialized support added
+- **Modern REVM requires explicit Inspector activation** - clearly documented
+- **Three distinct usage patterns** - each optimized for different scenarios
+
 ## [3.1.0] - 2025-06-22
 
 ### 🚀 Performance Improvements

@@ -58,6 +58,66 @@ pub mod inspector;
 /// - `DB`: Database backend implementing the `Database` trait
 /// - `INSP`: Inspector for transaction tracing and analysis
 ///
+/// # Usage Patterns
+///
+/// `TraceEvm` supports two main usage patterns:
+///
+/// ## 1. Convenience Functions (Recommended for most users)
+/// ```no_run
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use revm_trace::{create_evm_with_tracer, TxInspector, types::SimulationBatch, traits::TransactionTrace};
+/// 
+/// let tracer = TxInspector::new();
+/// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
+/// 
+/// // Create a sample batch (empty for demo)
+/// let batch = SimulationBatch {
+///     block_env: None,
+///     transactions: vec![],
+///     is_stateful: false,
+/// };
+/// 
+/// // High-level batch processing with automatic state management
+/// let results = evm.trace_transactions(batch);
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## 2. Manual Control (Advanced users)
+/// ```no_run
+/// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+/// use revm_trace::{create_evm_with_tracer, TxInspector};
+/// use revm::context::TxEnv;
+/// use revm::{ExecuteEvm, InspectCommitEvm};
+/// use alloy::primitives::{address, U256, TxKind};
+/// 
+/// let tracer = TxInspector::new();
+/// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
+/// 
+/// // Create a sample transaction
+/// let tx = TxEnv::builder()
+///     .caller(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+///     .kind(TxKind::Call(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")))
+///     .value(U256::ZERO)
+///     .build_fill();
+/// 
+/// // Manual transaction execution with fine-grained control
+/// evm.set_tx(tx);
+/// let result = evm.inspect_replay_commit()?;  // Explicit Inspector activation
+/// 
+/// // Access Inspector data at any time
+/// let transfers = evm.get_inspector().get_transfers();
+/// let traces = evm.get_inspector().get_traces();
+/// 
+/// // Manual state management
+/// evm.reset_inspector();  // Clear state for next transaction
+/// # Ok(())
+/// # }
+/// ```
+///
+/// **Important**: Modern REVM requires explicit `inspect_replay_commit()` calls to activate 
+/// Inspector hooks. The convenience functions like `trace_transactions()` automate this process.
+///
 /// # Examples
 ///
 /// ```no_run

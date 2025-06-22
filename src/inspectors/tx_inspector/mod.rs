@@ -114,4 +114,69 @@ impl TxInspector {
     }
 }
 
+// Specialized implementation for TraceEvm with TxInspector
+// This provides direct access to TxInspector-specific methods
+use crate::evm::TraceEvm;
+use revm::database::Database;
+
+impl<DB> TraceEvm<DB, TxInspector> 
+where
+    DB: Database,
+{
+    /// Get direct access to the TxInspector instance
+    ///
+    /// This method provides direct access to the TxInspector for cases where
+    /// you need to call TxInspector-specific methods like get_transfers(), 
+    /// get_traces(), get_logs(), and error tracing methods.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use revm_trace::{create_evm_with_tracer, TxInspector};
+    /// 
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let trace_inspector = TxInspector::new();
+    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
+    /// 
+    /// // After processing transactions, get direct access to TxInspector methods
+    /// let inspector = evm.get_inspector();
+    /// 
+    /// // Basic data access
+    /// let transfers = inspector.get_transfers();
+    /// let traces = inspector.get_traces();
+    /// let logs = inspector.get_logs();
+    /// 
+    /// // Advanced error tracing (from trace.rs)
+    /// let error_addr = inspector.get_error_trace_address();
+    /// let error_trace = inspector.find_error_trace();
+    /// 
+    /// println!("Collected {} transfers", transfers.len());
+    /// println!("Collected {} call traces", traces.len());
+    /// 
+    /// if let Some(error_location) = error_addr {
+    ///     println!("Error occurred at trace address: {:?}", error_location);
+    /// }
+    /// 
+    /// if let Some(failed_trace) = error_trace {
+    ///     println!("Failed call: {:?} -> {:?}", failed_trace.call_scheme, failed_trace.status);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Available Methods
+    /// 
+    /// Through the returned `&TxInspector`, you can access:
+    /// - `get_transfers()` - All recorded asset transfers
+    /// - `get_traces()` - Complete call trace tree  
+    /// - `get_logs()` - All emitted event logs
+    /// - `get_error_trace_address()` - Location of first error (from trace.rs)
+    /// - `find_error_trace()` - Detailed error analysis (from trace.rs)
+    ///
+    /// # Returns
+    /// A reference to the internal TxInspector instance with all its specific methods
+    pub fn get_inspector(&self) -> &TxInspector {
+        &self.inspector
+    }
+}
+
 

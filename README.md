@@ -1,4 +1,4 @@
-# REVM Transaction Simulator and Analyzer v3.0
+# REVM Transaction Simulator and Analyzer v3.1.1
 
 A high-performance, **multi-threaded** Rust library that combines powerful transaction simulation with comprehensive analysis capabilities for EVM-based blockchains. Built on [REVM](https://github.com/bluealloy/revm), this tool enables you to:
 
@@ -15,20 +15,34 @@ Perfect for:
 - Security researchers investigating transaction patterns
 - High-throughput applications requiring concurrent transaction processing
 
-## 🚀 What's New in v3.0
+## 🚀 What's New in v3.1.1
 
-- **🔥 Multi-Threading by Default**: All EVM instances are now thread-safe and optimized for concurrent processing
-- **⚡ Dual EVM Modes**: Choose between high-performance execution or detailed tracing based on your needs
-- **🎯 Simplified API**: Unified interface with `create_evm()` and `create_evm_with_tracer()` functions
-- **🌐 Universal Protocol Support**: Seamless HTTP/WebSocket support with automatic connection management
+- **🎯 Enhanced TxInspector Support**: Specialized `get_inspector()` method for direct access to all TxInspector functionality
+- **📚 Comprehensive Documentation**: Clear explanation of three usage modes and modern REVM API requirements
+- **🔧 Advanced Error Tracing**: Full access to `get_error_trace_address()`, `find_error_trace()`, and all inspector methods
+- **⚡ Optimized API Design**: Perfect balance between generic flexibility and TxInspector-specific convenience
+
+## 🎯 Core Value: TxInspector
+
+**TxInspector** is our flagship feature - a comprehensive transaction analyzer that provides:
+
+- **Complete Asset Transfer Tracking**: ETH and ERC20 transfers with full context
+- **Advanced Call Tree Analysis**: Hierarchical call structure with precise error location
+- **Event Log Collection**: All emitted events with automatic parsing
+- **Error Investigation Tools**: Pinpoint exact failure locations in complex call chains
+- **High-Performance Design**: Optimized for both single transactions and batch processing
 
 ## Key Features
 
-- **Dual EVM Mode Support**
-  - **Standard EVM**: Ultra-fast execution without tracing (`create_evm()`)
-  - **Tracing EVM**: Full transaction analysis with comprehensive trace data (`create_evm_with_tracer()`)
-  - Seamless switching between modes based on your requirements
-  - Built-in thread safety for concurrent processing
+- **Three Usage Modes for Every Scenario**
+  - **Simple Execution**: Ultra-fast gas estimation (`create_evm()`)
+  - **Manual Control**: Advanced tracing with fine-grained control (`create_evm_with_tracer()` + manual)
+  - **Automatic Processing**: Convenience API with automatic state management (`trace_transactions()`)
+
+- **TxInspector Specialized Support**
+  - Direct access to all inspector methods without type erasure
+  - Advanced error tracing and call analysis
+  - Seamless integration with modern REVM architecture
 
 - **Multi-Threading by Default**
   - All EVM instances are thread-safe out of the box
@@ -83,7 +97,7 @@ Perfect for:
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-revm-trace = "3.1.0"
+revm-trace = "3.1.1"
 ```
 
 ### TLS Backend Selection
@@ -93,13 +107,50 @@ revm-trace = "3.1.0"
 ```toml
 [dependencies]
 # Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
-revm-trace = "3.1.0"
+revm-trace = "3.1.1"
 
 # Option 2: Pure Rust TLS with rustls for system-dependency-free builds
-revm-trace = { version = "3.1.0", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "3.1.1", default-features = false, features = ["rustls-tls"] }
 ```
 
 Do not specify both features simultaneously, as this will include both TLS implementations and increase binary size unnecessarily.
+
+## 🎯 Three Usage Modes
+
+REVM-Trace provides three distinct usage patterns to suit different scenarios:
+
+### 1. 🚀 Simple Execution Mode (No Tracing)
+- **Use case**: Gas estimation, basic simulation, high-throughput scenarios
+- **Inspector**: `NoOpInspector` (output: `()`)
+- **Performance**: Fastest - zero tracing overhead  
+- **API**: `create_evm()` + `execute_batch()`
+
+### 2. 🔧 Manual Inspector Control (Advanced)
+- **Use case**: Custom tracing logic, debugging, research, fine-grained control
+- **Inspector**: Any custom inspector (e.g., `TxInspector`)
+- **Performance**: Full control over data collection and state management
+- **API**: `create_evm_with_tracer()` + manual `inspect_replay_commit()`
+
+### 3. 🎯 Automatic Batch Processing (Convenience)
+- **Use case**: Standard trace analysis, automated workflows
+- **Inspector**: Must implement `TraceOutput` trait (e.g., `TxInspector`)
+- **Performance**: Automatic state management with predictable overhead
+- **API**: `create_evm_with_tracer()` + `trace_transactions()`
+
+## ⚠️ Critical REVM API Changes
+
+**Modern REVM Requirement**: Inspector execution must be explicitly activated!
+
+- ❌ **Old REVM**: `evm.transact(tx)` would automatically trigger Inspector hooks
+- ✅ **New REVM**: `evm.transact(tx)` does **NOT** execute Inspector - you get raw execution only
+- ✅ **New REVM**: Must call `evm.inspect_replay_commit()` to activate Inspector
+
+This change enables:
+- Better performance control (skip tracing when not needed)
+- Explicit separation between execution and analysis  
+- Flexible inspector activation patterns
+
+**Key Point**: The convenience functions like `trace_transactions()` automatically handle `inspect_replay_commit()` for you, but manual mode requires explicit activation.
 
 ## Quick Start
 
@@ -216,6 +267,61 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
+### 🔧 Mode 3: Manual Inspector Control (Advanced)
+
+For users who need fine-grained control over the tracing process:
+
+```rust
+use revm_trace::{create_evm_with_tracer, TxInspector};
+use alloy::primitives::{address, U256, TxKind};
+use revm::context::TxEnv;
+use revm::{ExecuteEvm, InspectCommitEvm};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let inspector = TxInspector::new();
+    let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", inspector).await?;
+
+    // Manual workflow: Full control over inspector
+    let tx = TxEnv::builder()
+        .caller(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
+        .kind(TxKind::Call(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")))
+        .value(U256::ZERO)
+        .build_fill();
+
+    // Step 1: Set transaction
+    evm.set_tx(tx);
+
+    // Step 2: CRITICAL - Explicit Inspector activation (modern REVM requirement!)
+    // Note: evm.transact() would NOT execute the inspector
+    let result = evm.inspect_replay_commit()?;
+
+    // Step 3: Access TxInspector-specific methods anytime
+    let inspector = evm.get_inspector();
+    let transfers = inspector.get_transfers();
+    let traces = inspector.get_traces();
+    let logs = inspector.get_logs();
+    let error_location = inspector.get_error_trace_address();
+
+    println!("🔍 Transfers: {}, Traces: {}, Logs: {}", 
+             transfers.len(), traces.len(), logs.len());
+
+    if let Some(error_addr) = error_location {
+        println!("❌ Error at: {:?}", error_addr);
+        if let Some(error_trace) = inspector.find_error_trace() {
+            println!("Failed call: {:?} -> {:?}", error_trace.call_scheme, error_trace.status);
+        }
+    } else {
+        println!("✅ All calls executed successfully");
+    }
+
+    // Step 4: Manual state management (optional)
+    evm.reset_inspector();  // Clear for next transaction
+
+    Ok(())
+}
+```
+
 ### 🌐 WebSocket Support
 
 Both EVM modes support WebSocket connections for real-time blockchain data:
@@ -315,6 +421,27 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+## 🤔 Which Mode Should I Use?
+
+### Mode Selection Guide
+
+| Scenario | Recommended Mode | API | Reason |
+|----------|------------------|-----|--------|
+| 🚀 Gas estimation, basic simulation | **Mode 1** | `create_evm()` + `execute_batch()` | Fastest, zero overhead |
+| 🔧 Custom tracing, debugging, research | **Mode 2** | `create_evm_with_tracer()` + manual control | Full control, all inspector methods |
+| 🎯 Standard trace analysis, automation | **Mode 3** | `create_evm_with_tracer()` + `trace_transactions()` | Clean API, automatic management |
+| 🔄 High-throughput processing | **Mode 1** or **Mode 2** | Concurrent instances | Avoid TraceOutput overhead |
+| 🧪 Inspector development | **Mode 2** | Manual `inspect_replay_commit()` | Direct access to internals |
+| 📊 DeFi analysis & reporting | **Mode 3** | `trace_transactions()` | Rich data with automatic cleanup |
+
+### Key Decision Factors
+
+- **Need tracing data?** → Use Mode 2 or 3
+- **Want automatic management?** → Use Mode 3  
+- **Need maximum performance?** → Use Mode 1
+- **Building custom inspector?** → Use Mode 2
+- **Processing thousands of transactions?** → Use Mode 1 + concurrency
 
 ### 🎯 Performance Tips
 
