@@ -152,7 +152,8 @@ pub trait TraceInspector<CTX>: Inspector<CTX> + Reset + TraceOutput {}
 /// - **`Inspector<CTX>`**: Core REVM inspector interface for EVM execution callbacks
 /// - **`Reset`**: Ability to reset internal state between transactions
 /// - **`TraceOutput`**: Ability to extract structured output after execution  
-/// - **`Clone`**: Required for batch processing where inspector instances need duplication
+/// 
+/// Note: The `Clone` requirement was removed in v3.1 for better performance.
 /// 
 /// # Design Rationale
 /// 
@@ -169,7 +170,7 @@ pub trait TraceInspector<CTX>: Inspector<CTX> + Reset + TraceOutput {}
 /// use revm_trace::traits::{Reset, TraceOutput, TraceInspector};
 /// use revm::Inspector;
 /// 
-/// #[derive(Clone)]
+/// #[derive(Default)]
 /// struct MyInspector {
 ///     calls: Vec<String>,
 /// }
@@ -198,11 +199,11 @@ pub trait TraceInspector<CTX>: Inspector<CTX> + Reset + TraceOutput {}
 /// 
 /// # Trait Bounds
 /// 
-/// The `Clone` bound is specifically required for batch transaction processing,
-/// where multiple inspector instances may need to be created from a template.
+/// Previously required `Clone` bound for batch transaction processing,
+/// but this has been optimized away in v3.1 for better performance.
 impl<CTX, T> TraceInspector<CTX> for T 
 where 
-    T: Inspector<CTX> + Reset + TraceOutput + Clone 
+    T: Inspector<CTX> + Reset + TraceOutput 
 {}
 
 impl Reset for () {
@@ -309,7 +310,7 @@ impl TraceOutput for NoOpInspector {
 
 // Note: NoOpInspector automatically implements TraceInspector<CTX> through the blanket implementation:
 // impl<CTX, T> TraceInspector<CTX> for T 
-// where T: Inspector<CTX> + Reset + TraceOutput + Clone
+// where T: Inspector<CTX> + Reset + TraceOutput
 // 
-// Since NoOpInspector already implements Inspector<CTX> (from revm) and Clone (derive),
+// Since NoOpInspector already implements Inspector<CTX> (from revm),
 // and we've implemented Reset and TraceOutput above, it automatically gets TraceInspector.

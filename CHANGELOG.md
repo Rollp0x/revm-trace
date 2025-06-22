@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2025-06-22
+
+### 🚀 Performance Improvements
+
+#### Breaking Changes
+- **Removed `Clone` constraint from `TraceInspector`**
+  - Eliminates unnecessary inspector cloning constraints in batch processing
+  - Enables users to use REVM's built-in `GasInspector` and `TracerEip3155` for custom wrapper development
+  - Improves memory usage and performance
+  - Simplifies trait bounds for better ergonomics
+
+#### Internal Optimizations
+- **Optimized `trace_internal` function**
+  - Direct use of `set_tx()` + `inspect_replay_commit()` pattern
+  - Eliminates intermediate inspector cloning
+  - Better utilizes the `InspectCommitEvm` trait design
+
+#### Documentation Updates
+- Updated trait documentation to reflect removed `Clone` requirement
+- Simplified examples without unnecessary derives
+- Improved performance characteristics documentation
+
 ## [3.0.0] - 2025-06-22
 
 ### 🚀 Major Architecture Overhaul

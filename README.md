@@ -83,7 +83,7 @@ Perfect for:
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-revm-trace = "3.0.0"
+revm-trace = "3.1.0"
 ```
 
 ### TLS Backend Selection
@@ -93,10 +93,10 @@ revm-trace = "3.0.0"
 ```toml
 [dependencies]
 # Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
-revm-trace = "3.0.0"
+revm-trace = "3.1.0"
 
 # Option 2: Pure Rust TLS with rustls for system-dependency-free builds
-revm-trace = { version = "3.0.0", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "3.1.0", default-features = false, features = ["rustls-tls"] }
 ```
 
 Do not specify both features simultaneously, as this will include both TLS implementations and increase binary size unnecessarily.

@@ -14,7 +14,12 @@
 //!   - HTTP and WebSocket RPC connections
 //!   - Automatic protocol detection
 //!   - Any EVM-compatible chain support
-//!   - Built-in rustls TLS support for cross-platform compatibility
+//!   - Configurable TLS support (rustls/native-tls features)
+//!
+//! - **Multi-threading Support**
+//!   - Thread-safe design for concurrent transaction processing
+//!   - Suitable for HTTP API integration and high-throughput scenarios
+//!   - Inspector state isolation between concurrent executions
 //!
 //! - **Flexible Inspector System**
 //!   - Custom transaction tracers
@@ -27,7 +32,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! revm-trace = "3.0.0"
+//! revm-trace = "3.1.0"
 //! ```
 //!
 //! ### TLS Backend Selection
@@ -36,14 +41,11 @@
 //!
 //! ```toml
 //! # Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
-//! revm-trace = "3.0.0"
+//! revm-trace = "3.1.0"
 //!
 //! # Option 2: Pure Rust TLS with rustls for system-dependency-free builds
-//! revm-trace = { version = "3.0.0", default-features = false, features = ["rustls-tls"] }
+//! revm-trace = { version = "3.1.0", default-features = false, features = ["rustls-tls"] }
 //! ```
-//!
-//! The library uses rustls for TLS connections, providing excellent cross-platform
-//! compatibility without requiring OpenSSL or other system TLS libraries.
 //! 
 //! ## Example Usage
 //!

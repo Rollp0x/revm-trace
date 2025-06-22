@@ -10,7 +10,7 @@ use crate::evm::TraceEvm;
 impl<DB,INSP> TraceEvm<DB,INSP> 
 where
     DB: Database,
-    INSP: TraceOutput + Reset + Clone,
+    INSP: TraceOutput + Reset,
 {
     /// Retrieve the current output from the inspector
     ///
@@ -69,49 +69,5 @@ where
     /// in batch processing to ensure proper state isolation.
     pub fn reset_inspector(&mut self) {
         self.inspector.reset();
-    }
-
-    /// Clone the inspector instance for trace analysis
-    ///
-    /// Creates a fresh copy of the current inspector. This is primarily used
-    /// internally by the tracing system when calling `inspect_commit` functions,
-    /// which require ownership of an inspector instance.
-    ///
-    /// # Design Rationale
-    /// 
-    /// In revm 24+, the new inspector architecture requires passing inspector
-    /// instances by value to `inspect_commit` functions. This means:
-    /// 
-    /// - Each transaction trace needs its own inspector instance
-    /// - The inspector must be cloned before being passed to `inspect_commit`
-    /// - This ensures proper isolation between transaction traces
-    /// 
-    /// # Examples
-    /// ```no_run
-    /// use revm_trace::{create_evm_with_tracer, TxInspector};
-    /// 
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let trace_inspector = TxInspector::new();
-    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
-    /// 
-    /// // Clone inspector for external analysis
-    /// let inspector_copy = evm.clone_inspector();
-    /// 
-    /// // The original inspector remains unchanged
-    /// // while the copy can be used independently
-    /// # Ok(())
-    /// # }
-    /// ```
-    ///
-    /// # Returns
-    /// A fresh copy of the inspector with the same configuration but
-    /// independent state (reset to initial state).
-    ///
-    /// # Note
-    /// This method is called internally during transaction processing to
-    /// provide fresh inspector instances to `inspect_commit` functions.
-    /// The `Clone` trait requirement ensures this operation is always available.
-    pub fn clone_inspector(&self) -> INSP {
-        self.inspector.clone()
     }
 }

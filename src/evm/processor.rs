@@ -23,7 +23,7 @@ use crate::traits::TraceInspector;
 impl<DB, INSP> TraceEvm<DB, INSP> 
 where
     DB: Database + DatabaseCommit,
-    INSP: TraceInspector<MainnetContext<DB>> + Clone,
+    INSP: TraceInspector<MainnetContext<DB>>,
 {
     /// Process a single transaction with tracing
     ///
@@ -70,11 +70,9 @@ where
             .nonce(nonce)
             .build_fill();
             
-        // Clone inspector for execution
-        let inspector = self.clone_inspector();
-
-        // Execute transaction with inspector and commit changes
-        let result = self.inspect_commit(tx, inspector)
+        // Set transaction and execute with current inspector, committing changes
+        self.set_tx(tx);
+        let result = self.inspect_replay_commit()
             .map_err(|e| RuntimeError::ExecutionFailed(format!("Inspector execution failed: {}", e)))?;
             
         // Collect inspector output
@@ -87,7 +85,7 @@ where
 impl<DB, INSP> TransactionTrace<MainnetContext<CacheDB<DB>>> for TraceEvm<CacheDB<DB>, INSP> 
 where
     DB: DatabaseRef,
-    INSP: TraceInspector<MainnetContext<CacheDB<DB>>> + Clone,
+    INSP: TraceInspector<MainnetContext<CacheDB<DB>>>,
 {
     type Inspector = INSP;
 
@@ -166,6 +164,12 @@ where
         
         // 4. Clean up inspector state after batch completion
         self.reset_inspector();
+        
+        // 5. Reset transaction environment to prevent interference with other uses
+        self.set_tx(Default::default());
+        // Note: We don't reset_db here because EVM state can be preserved for other scenarios,
+        // such as querying ERC20 token balances
+        
         results
     }
 }
