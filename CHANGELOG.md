@@ -33,7 +33,7 @@ This version represents a **complete rewrite** of the library with breaking chan
   - Native WebSocket support with dedicated builder functions
   - Automatic connection management and reconnection
   - HTTP and WebSocket providers with identical APIs
-  - rustls-tls for secure connections without OpenSSL dependency
+  - Flexible TLS backend support (native-tls by default, rustls optional)
 
 - **📊 Advanced Inspector System**
   - Redesigned `TxInspector` with comprehensive trace collection
@@ -144,7 +144,7 @@ let evm = create_evm_with_tracer("...", inspector).await?;
 
 - **Provider System**
   - Layered filler pattern with automatic transaction field population
-  - HTTP/WebSocket provider unification with rustls-TLS
+  - HTTP/WebSocket provider unification with secure TLS
   - Connection pooling and automatic reconnection handling
 
 - **Batch Processing**

@@ -86,6 +86,21 @@ Add this to your `Cargo.toml`:
 revm-trace = "3.0.0"
 ```
 
+### TLS Backend Selection
+
+**Important**: The TLS backend features are mutually exclusive. Choose only one:
+
+```toml
+[dependencies]
+# Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
+revm-trace = "3.0.0"
+
+# Option 2: Pure Rust TLS with rustls for system-dependency-free builds
+revm-trace = { version = "3.0.0", default-features = false, features = ["rustls-tls"] }
+```
+
+Do not specify both features simultaneously, as this will include both TLS implementations and increase binary size unnecessarily.
+
 ## Quick Start
 
 REVM-Trace v3.0 provides two distinct EVM modes to match your specific use case:

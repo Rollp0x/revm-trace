@@ -11,6 +11,10 @@ keywords = ["evm", "blockchain", "simulation", "multithreading", "tracing"]
 categories = ["development-tools", "simulation"]
 readme = "README.md"
 
+[features]
+default = ["alloy/default"]
+rustls-tls = ["alloy/reqwest-rustls-tls"]
+
 [dependencies]
 # Latest versions for research
 revm = { version = "24.0.1", features = [
@@ -23,7 +27,7 @@ revm = { version = "24.0.1", features = [
     "optional_block_gas_limit",
     "optional_no_base_fee"
 ] }
-alloy = { version = "1.0.3", default-features = false, features = ["full", "dyn-abi", "reqwest-rustls-tls","provider-debug-api", "provider-trace-api", "provider-ws"] }
+alloy = { version = "1.0.3", default-features = false, features = ["full", "dyn-abi", "provider-debug-api", "provider-trace-api", "provider-ws"] }
 foundry-fork-db = { version = "0.15.1"}
 once_cell = "1.19"
 
@@ -44,3 +48,4 @@ env_logger = "0.10"
 serde_json = "1.0"
 hex = "0.4"
 futures = "0.3"
+
