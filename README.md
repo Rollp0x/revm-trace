@@ -337,8 +337,6 @@ async fn main() -> anyhow::Result<()> {
 | DeFi protocol analysis | `create_evm_with_tracer()` | Rich trace data for comprehensive analysis |  
 | Batch processing | `create_evm()` + concurrent tasks | Optimal throughput |
 | Transaction debugging | `create_evm_with_tracer()` | Detailed error traces and call stacks |
-```
-
 
 
 ## More Examples
@@ -412,14 +410,15 @@ async fn concurrent_processing() -> anyhow::Result<()> {
 
 ### ⚠️ Migration from v2.x
 
-In v2.x, EVM instances required careful handling for concurrency. **v3.0 eliminates these concerns**:
+In v2.x, EVM instances were **NOT thread-safe and could NOT be used concurrently**, even with `Arc<Mutex<>>` wrapping due to underlying database connection limitations. **v3.0 introduces true multi-threading support**:
 
 ```rust
-// ❌ v2.x: Complex shared state management
-// let evm = Arc::new(Mutex::new(create_evm().await?));
+// ❌ v2.x: NO concurrent support - this would fail!
+// let evm = Arc::new(Mutex::new(create_evm().await?)); // ← This doesn't work!
+// Multiple threads would cause database connection conflicts
 
-// ✅ v3.0: Simple per-thread instances
-let mut evm = create_evm("https://rpc-url").await?;
+// ✅ v3.0: True multi-threading - each thread gets its own optimized EVM
+let mut evm = create_evm("https://rpc-url").await?;  // Thread-safe from ground up
 ```
 ## 🛡️ Safe Simulation Environment
 
@@ -473,6 +472,116 @@ Simulations can be run against different historical states:
 - Recent blocks: Available on all nodes
 - Historical blocks: Requires archive node access
 - Future blocks: Uses latest state as base
+
+## 🌐 Web API Integration
+
+### Actix-Web Integration
+
+REVM-Trace v3.0 provides seamless integration with web frameworks. Here's a complete example using [Actix-Web](https://actix.rs/):
+
+```rust
+// examples/actix_web_integration.rs
+use actix_web::{web, App, HttpServer, HttpResponse, Result};
+use revm_trace::{create_evm, create_evm_with_tracer, TxInspector};
+
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(|| {
+        App::new()
+            .route("/simulate", web::post().to(simulate_transaction))
+            .route("/health", web::get().to(health_check))
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
+}
+```
+
+#### Key Features:
+- **🚀 Two Implementation Approaches**: Choose between `tokio::task::spawn_blocking` or `web::block`
+- **⚡ High Performance**: Each request creates optimized EVM instances
+- **🛡️ Thread Safety**: Built-in multi-threading support for concurrent requests
+- **📊 Flexible Responses**: Optional tracing with detailed call traces and asset transfers
+- **🔧 Easy Integration**: Drop-in solution for existing Actix-Web applications
+
+#### API Example:
+
+**Request:**
+```json
+{
+    "rpc_url": "https://eth.llamarpc.com",
+    "from": "0xC255fC198eEdAC7AF8aF0f6e0ca781794B094A61",
+    "to": "0xd878229c9c3575F224784DE610911B5607a3ad15",
+    "value": "120000000000000000",
+    "data": "0x",
+    "with_trace": true
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "gas_used": 21000,
+    "error": null,
+    "traces": {
+        "asset_transfers": 1,
+        "call_traces": {
+            "from": "0xc255fc198eedac7af8af0f6e0ca781794b094a61",
+            "to": "0xd878229c9c3575f224784de610911b5607a3ad15",
+            "value": "0x1aa535d3d0c0000",
+            "call_scheme": "Call",
+            "gas_used": "0x0",
+            "status": "Success"
+        }
+    }
+}
+```
+
+#### Multi-Threading Approaches:
+
+**Approach 1: `web::block` (Recommended)**
+```rust
+async fn simulate_transaction(req: web::Json<SimulateRequest>) -> Result<HttpResponse> {
+    let request = req.into_inner();
+    
+    let result = web::block(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async { simulate_tx_internal(request).await })
+    }).await;
+    
+    // Handle result...
+}
+```
+
+**Approach 2: `tokio::task::spawn_blocking`**
+```rust
+async fn simulate_transaction(req: web::Json<SimulateRequest>) -> Result<HttpResponse> {
+    let request = req.into_inner();
+    
+    let result = tokio::task::spawn_blocking(move || {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            simulate_tx_internal(request).await
+        })
+    }).await;
+    
+    // Handle result...
+}
+```
+
+**Run the Example:**
+```bash
+cargo run --example actix_web_integration
+
+# Test with curl:
+curl -X POST http://127.0.0.1:8080/simulate \
+  -H "Content-Type: application/json" \
+  -d '{"rpc_url":"https://eth.llamarpc.com","from":"0xC255fC198eEdAC7AF8aF0f6e0ca781794B094A61","to":"0xd878229c9c3575F224784DE610911B5607a3ad15","value":"120000000000000000","with_trace":true}'
+```
+
+> **💡 Production Tip**: Consider using Nginx rate limiting for production deployments to manage request frequency and prevent resource exhaustion.
+
+---
 
 ## 🤝 Contributing
 

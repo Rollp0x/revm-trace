@@ -42,6 +42,13 @@ This version represents a **complete rewrite** of the library with breaking chan
   - Asset transfer tracking with detailed transaction analysis
   - Call hierarchy tracing with precise error location
 
+- **🌐 Web Framework Integration**
+  - **Actix-Web Integration Example**: Complete RESTful API implementation
+  - **Multi-threading Support**: Two approaches using `web::block` and `tokio::task::spawn_blocking`
+  - **Production-Ready**: Error handling, health checks, and JSON API responses
+  - **Flexible Configuration**: Optional tracing with detailed call traces and asset transfers
+  - **Performance Optimized**: Per-request EVM instance creation for optimal resource usage
+
 ### Changed
 - **💥 BREAKING: Complete API Redesign**
   - Removed `EvmBuilder` pattern in favor of simple creation functions
@@ -73,8 +80,10 @@ This version represents a **complete rewrite** of the library with breaking chan
   - Comprehensive API documentation with usage examples
   - Clear distinction between standard and tracing modes
   - Updated all examples to reflect new APIs
+  - **Actix-Web Integration Guide**: Complete web API example with curl test commands
   - Performance guidance and best practices
   - Multi-threading usage patterns
+  - Production deployment recommendations
 
 - **🧪 Testing Infrastructure**
   - Expanded test coverage for all new features

@@ -145,11 +145,11 @@
 //! ### WebSocket Connection
 //!
 //! ```no_run
-//! use revm_trace::create_evm_ws;
+//! use revm_trace::create_evm;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create EVM with WebSocket connection
-//! let mut evm = create_evm_ws("wss://eth-mainnet.g.alchemy.com/v2/your-api-key").await?;
+//! // Create EVM with WebSocket connection (auto-detected from URL)
+//! let mut evm = create_evm("wss://mainnet.gateway.tenderly.co").await?;
 //!
 //! // Use the same way as HTTP connections
 //! # Ok(())
