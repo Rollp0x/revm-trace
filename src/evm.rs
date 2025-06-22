@@ -180,6 +180,65 @@ where
     pub fn new(evm: MainnetEvm<MainnetContext<DB>, INSP>) -> Self {
         Self(evm)
     }
+
+    /// Get direct access to the inspector instance
+    ///
+    /// This method provides direct access to the Inspector for cases where
+    /// you need to call inspector-specific methods. The returned reference
+    /// allows you to access all methods specific to your inspector type.
+    ///
+    /// **Note**: You can also access the inspector directly via `&self.inspector`
+    /// due to the `Deref` implementation, but this method provides explicit access
+    /// for better code clarity.
+    ///
+    /// # Examples
+    /// 
+    /// ## With TxInspector
+    /// ```no_run
+    /// use revm_trace::{create_evm_with_tracer, TxInspector};
+    /// 
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let trace_inspector = TxInspector::new();
+    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
+    /// 
+    /// // After processing transactions, get direct access to TxInspector methods
+    /// let inspector = evm.get_inspector();
+    /// 
+    /// // TxInspector-specific methods
+    /// let transfers = inspector.get_transfers();
+    /// let traces = inspector.get_traces();
+    /// let logs = inspector.get_logs();
+    /// 
+    /// // Advanced error tracing methods
+    /// let error_addr = inspector.get_error_trace_address();
+    /// let error_trace = inspector.find_error_trace();
+    /// 
+    /// println!("Collected {} transfers", transfers.len());
+    /// println!("Collected {} call traces", traces.len());
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// ## With Custom Inspector
+    /// ```no_run
+    /// use revm_trace::create_evm_with_tracer;
+    /// use revm::inspector::NoOpInspector;
+    /// 
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let inspector = NoOpInspector;
+    /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", inspector).await?;
+    /// 
+    /// // Access the NoOpInspector (though it has no specific methods)
+    /// let inspector_ref = evm.get_inspector();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Returns
+    /// A reference to the internal inspector instance with all its specific methods
+    pub fn get_inspector(&self) -> &INSP {
+        &self.inspector
+    }
 }
 
 /// Transparent access to the underlying MainnetEvm
