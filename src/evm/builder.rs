@@ -1,19 +1,17 @@
 use revm::{
-    context::{Context, BlockEnv}, 
-    database::CacheDB, 
-    inspector::NoOpInspector,
-    handler::{MainBuilder,MainContext,MainnetContext}, 
+    context::{BlockEnv, Context}, context_interface::ContextTr, database::{CacheDB, Database}, handler::{MainBuilder,MainContext,MainnetContext}, inspector::NoOpInspector, ExecuteEvm 
 };
 use alloy::{
-    eips::BlockId, network::AnyNetwork, providers::{
+    eips::{BlockId,BlockNumberOrTag}, network::AnyNetwork, providers::{
         Provider, ProviderBuilder, WsConnect
     }
 };
 use crate::{
+    ResetDB,
     types::AnyNetworkProvider,
     errors::{EvmError,InitError},
     TraceEvm,
-    TraceInspector
+    TraceInspector,utils::block_utils::get_block_env,
 };
 use foundry_fork_db::{backend::SharedBackend, BlockchainDb, cache::BlockchainDbMeta};
 use std::sync::Arc;
@@ -92,6 +90,7 @@ async fn create_evm_internal<INSP>(
     let blockchain_db = BlockchainDb::new(meta, None); // None = use in-memory cache
     // Spawn a dedicated backend thread for handling database operations
     // This provides thread-safe access to blockchain state
+    // let block_env = get_block_env(19416560, 1600000000);
     let shared_backend = SharedBackend::spawn_backend_thread(
         Arc::new(provider),
         blockchain_db,
@@ -105,6 +104,7 @@ async fn create_evm_internal<INSP>(
     cfg.limit_contract_code_size = None;
     cfg.disable_block_gas_limit = true;
     cfg.disable_base_fee = true;
+    // cfg.disable_balance_check = true;
     let evm = ctx.build_mainnet_with_inspector(tracer);
     Ok(TraceEvm::new(evm))
 }
@@ -190,4 +190,38 @@ where
     INSP: TraceInspector<MainnetContext<CacheDB<SharedBackend>>> + Clone,
 {
     create_evm_internal(rpc_url, tracer).await
+}
+
+impl<INSP> TraceEvm<CacheDB<SharedBackend>, INSP> {
+
+    pub fn set_db_block(
+        &mut self,
+        block_env: BlockEnv,
+    ) -> Result<(), EvmError>
+    where
+        INSP: TraceInspector<MainnetContext<CacheDB<SharedBackend>>>,
+    {   
+        let block_id = BlockId::Number(BlockNumberOrTag::Number(block_env.number));
+        
+        // Clear both cache layers and set the pinned block in a single scope
+        {
+            let cache_db = &mut self.0.ctx.db().db;
+            
+            // Clear SharedBackend's internal cache by accessing its MemDb
+            let mem_db = cache_db.data();
+            mem_db.clear();
+            
+            // Set the backend's pinned block
+            cache_db.set_pinned_block(block_id)
+                .map_err(|e| EvmError::Init(InitError::DatabaseError(format!("Failed to set pinned block: {}", e))))?;
+        }
+        
+        // Clear CacheDB layer cache
+        self.reset_db();
+        
+        // Set the EVM block context
+        self.set_block(block_env);
+        
+        Ok(())
+    }
 }
