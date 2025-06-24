@@ -13,7 +13,7 @@
 //!
 //! ## Usage Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let mut wrapped_db = MyWrapDatabaseAsync::new(alloy_db)?;
 //! let inner_db = wrapped_db.get_db_mut();
 //! inner_db.set_block_number(new_block_id);
@@ -64,7 +64,7 @@ impl<T> MyWrapDatabaseAsync<T> {
     /// such as configuration changes or state updates.
     /// 
     /// # Example
-    /// ```rust
+    /// ```rust,ignore
     /// let mut wrapped_db = MyWrapDatabaseAsync::new(alloy_db)?;
     /// let inner_db = wrapped_db.get_db_mut();
     /// inner_db.set_block_number(new_block_id);

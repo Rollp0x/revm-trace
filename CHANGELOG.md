@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2024-06-22
+
+### 🚀 Major Breaking Changes & Features
+
+- **Unified Multi-Backend Support**: EVM simulation now supports both AlloyDB (default) and foundry-fork-db (via `foundry-fork` feature) with ergonomic, feature-conditional API.
+- **EvmBuilder API**: All EVM construction is now via `EvmBuilder`, with `create_evm` and `create_evm_with_tracer` as quick entry points. Custom block height via builder or `set_db_block`.
+- **Block Context Management**: All utility functions now manage block context at EVM creation; `block_env` removed from function signatures.
+- **Multi-Threading & Concurrency**: Examples and API support robust multi-threaded and concurrent EVM simulation, including shared backend scenarios.
+- **Trait-Based Reset & Caching**: New `ResetBlock` and `ResetDB` traits for block reset and cache management.
+- **Improved Documentation**: README and doc comments rewritten for clarity, with new usage patterns, feature table, and a complete ERC20 transfer example.
+- **Feature-Conditional Examples**: All examples modularized for backend selection via features.
+- **Version Bump**: All version references updated to 4.0.0.
+
+#### ⚠️ Breaking Changes
+- All EVM construction and backend selection is now via `EvmBuilder` and feature flags.
+- Utility functions no longer accept `block_env`; block context is set at EVM creation.
+- API and example usage patterns have changed—see README for migration guidance.
+
+---
+
 ## [3.1.1] - 2025-06-22
 
 ### 🎯 TxInspector Enhanced Support
@@ -111,7 +131,7 @@ This version represents a **complete rewrite** of the library with breaking chan
   - **`types.rs`**: Redesigned type system with clear provider abstractions
   - **`errors.rs`**: Enhanced error hierarchy with better context
 
-- **💥 BREAKING: Transaction Processing**
+  - **💥 BREAKING: Transaction Processing**
   - New `SimulationBatch` structure with improved state management
   - Stateful/stateless execution modes with automatic nonce management
   - `process_transaction_internal()` → internal API, users use `execute_batch()`/`trace_transactions()`

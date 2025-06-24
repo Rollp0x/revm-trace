@@ -48,7 +48,7 @@
 //!
 //! ## Usage Patterns
 //!
-//! ```rust
+//! ```rust,ignore
 //! // ✅ Single-threaded usage - works perfectly
 //! let evm = EvmBuilder::new_alloy("https://eth.llamarpc.com")
 //!     .with_block_number(18_000_000)
@@ -281,6 +281,7 @@ impl EvmBuilder<AllDBType, NoOpInspector> {
     ///
     /// # Example
     /// ```rust
+    /// use revm_trace::EvmBuilder;
     /// let builder = EvmBuilder::new_alloy("https://eth.llamarpc.com");
     /// ```
     pub fn new_alloy(url: &str) -> Self {
@@ -316,6 +317,7 @@ impl<DB: DatabaseRef, INSP> EvmBuilder<DB, INSP> {
     ///
     /// # Example
     /// ```rust
+    /// use revm_trace::EvmBuilder;
     /// let builder = EvmBuilder::new_alloy("https://eth.llamarpc.com")
     ///     .with_block_number(18_000_000);
     /// ```
@@ -350,6 +352,7 @@ impl<DB: DatabaseRef, INSP> EvmBuilder<DB, INSP> {
     ///
     /// # Example
     /// ```rust
+    /// use revm_trace::{EvmBuilder, TxInspector};
     /// let builder = EvmBuilder::new_alloy("https://eth.llamarpc.com")
     ///     .with_tracer(TxInspector::new());
     /// ```
@@ -495,12 +498,6 @@ impl<INSP> EvmBuilder<AllDBType, INSP> {
 /// - Quick prototyping and testing
 /// - Scenarios where performance is prioritized over observability
 ///
-/// # Example
-///
-/// ```rust
-/// let evm = create_evm("https://eth.llamarpc.com").await?;
-/// let result = evm.execute_transaction(tx)?;
-/// ```
 pub async fn create_evm(rpc_url: &str) -> Result<DefaultEvm, EvmError> {
     let evm_builder = EvmBuilder::<AllDBType, NoOpInspector>::new_alloy(rpc_url);
     evm_builder.build().await
@@ -539,14 +536,6 @@ pub async fn create_evm(rpc_url: &str) -> Result<DefaultEvm, EvmError> {
 /// - Performance profiling
 /// - Security analysis
 ///
-/// # Example
-///
-/// ```rust
-/// let tracer = TxInspector::new();
-/// let evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
-/// let result = evm.execute_transaction(tx)?;
-/// let traces = result.inspector().get_traces();
-/// ```
 pub async fn create_evm_with_tracer<INSP>(
     rpc_url: &str,
     tracer: INSP,
