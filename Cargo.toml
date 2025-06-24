@@ -17,6 +17,8 @@ rustls-tls = ["alloy/reqwest-rustls-tls"]
 foundry-fork = ["dep:foundry-fork-db"]
 full = ["foundry-fork", "rustls-tls"]
 
+# Note: Either default features (native-tls) or rustls-tls must be enabled; otherwise, the provider will not work properly.
+
 [dependencies]
 # Latest versions for research
 revm = { version = "24.0.1", features = [
