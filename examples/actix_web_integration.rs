@@ -73,13 +73,20 @@
 
 use actix_web::{web, App, HttpServer, HttpResponse, Result, middleware::Logger};
 use revm_trace::{
-    create_evm, create_evm_with_tracer, TxInspector,
+    TxInspector,
     types::{SimulationTx, SimulationBatch},
     traits::TransactionTrace,
 };
 use serde::{Deserialize, Serialize};
 use alloy::primitives::{U256, TxKind, Address};
 use std::str::FromStr;
+
+#[cfg(not(feature = "foundry-fork"))]
+use revm_trace::{create_evm_with_tracer, create_evm};
+
+
+#[cfg(feature = "foundry-fork")]
+use revm_trace::{create_shared_evm_with_tracer, create_shared_evm};
 
 /// Request structure for transaction simulation
 #[derive(Deserialize)]
@@ -229,7 +236,6 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
     };
 
     let batch = SimulationBatch {
-        block_env: None,
         transactions: vec![tx],
         is_stateful: false,
     };
@@ -237,7 +243,13 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
     // Choose EVM mode based on tracing requirement
     if request.with_trace.unwrap_or(false) {
         // Use tracing mode for detailed call traces and asset transfers
-        match create_evm_with_tracer(&request.rpc_url, TxInspector::new()).await {
+        #[cfg(not(feature = "foundry-fork"))]
+        let create_evm_result = create_evm_with_tracer(&request.rpc_url, TxInspector::new()).await;
+
+        #[cfg(feature = "foundry-fork")]
+        let create_evm_result = create_shared_evm_with_tracer(&request.rpc_url,TxInspector::new()).await;
+
+        match create_evm_result {
             Ok(mut evm) => {
                 let results = evm.trace_transactions(batch);
                 match results.into_iter().next() {
@@ -275,7 +287,12 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
         }
     } else {
         // Use standard mode for high performance (no tracing overhead)
-        match create_evm(&request.rpc_url).await {
+        #[cfg(not(feature = "foundry-fork"))]
+        let create_evm_result = create_evm(&request.rpc_url).await;
+        #[cfg(feature = "foundry-fork")]
+        let create_evm_result = create_shared_evm(&request.rpc_url).await;
+
+        match create_evm_result{
             Ok(mut evm) => {
                 let results = evm.execute_batch(batch);
                 match results.into_iter().next() {
@@ -331,6 +348,12 @@ async fn main() -> std::io::Result<()> {
     println!("   POST /simulate           - Simulate transactions (spawn_blocking)");
     println!("   POST /simulate_web_block - Simulate transactions (web::block)");
     println!("   GET  /health             - Health check");
+
+    #[cfg(not(feature = "foundry-fork"))]
+    println!("Using AlloyDB backend for EVM simulation");
+    
+    #[cfg(feature = "foundry-fork")]
+    println!("Using Foundry fork backend for EVM simulation");
 
     HttpServer::new(|| {
         App::new()

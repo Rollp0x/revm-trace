@@ -152,7 +152,6 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     
     // execute all transactions
     let results = evm.trace_transactions(SimulationBatch {
-        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -261,7 +260,6 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
 
     // execute all transactions
     let results = evm.trace_transactions(SimulationBatch {
-        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -364,7 +362,6 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
 
     // execute all transactions
     let results = evm.trace_transactions(SimulationBatch {
-        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2, tx3],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -468,7 +465,6 @@ async fn test_multicall_with_error() -> anyhow::Result<()>   {
 
     // execute batch transactions
     let results = evm.trace_transactions(SimulationBatch {
-        block_env: None,
         is_stateful: true,
         transactions: vec![tx0, tx1, tx2],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -524,7 +520,6 @@ async fn test_create_contract() {
         data: data.into(),
     };
     let results = evm.trace_transactions(SimulationBatch {
-        block_env:None,
         is_stateful: false,
         transactions: vec![tx0],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -568,7 +563,6 @@ async fn test_stateful_and_stateless_call_trace() {
     };
 
     let results = evm.trace_transactions(SimulationBatch {
-        block_env: None,
         is_stateful: false,
         transactions: vec![tx0.clone(), tx1.clone()],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -585,7 +579,6 @@ async fn test_stateful_and_stateless_call_trace() {
     assert_eq!(deploy_call_tx1.to, expected_contract_address, "Contract address should match");
 
     let results = evm.trace_transactions(SimulationBatch {
-        block_env: None,
         is_stateful: true,
         transactions: vec![tx0.clone(), tx1.clone()],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
@@ -624,7 +617,6 @@ async fn test_wth_ws() -> anyhow::Result<()> {
     let transfer2_amount = U256::from(60000000000000000u64);  // 0.06 ETH
 
     let txs = SimulationBatch {
-        block_env: None,
         is_stateful: true,
         transactions: vec![
             SimulationTx {

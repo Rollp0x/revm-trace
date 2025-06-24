@@ -13,7 +13,7 @@ use anyhow::Result;
 use crate::{
     evm::TraceEvm,
     errors::{TokenError,EvmError},
-    types::{BlockEnv, TokenInfo}
+    types::TokenInfo
 };
 use once_cell::sync::Lazy;
 use alloy::{
@@ -51,7 +51,6 @@ static TRANSFER_EVENT_SIGNATURE: Lazy<FixedBytes<32>> =
 /// - `evm`: EVM instance for contract execution
 /// - `token_address`: Address of the ERC20 token contract
 /// - `owner`: Address to query balance for
-/// - `block_params`: Optional block context for the query
 ///
 /// # Returns
 /// - `Ok(U256)`: Token balance in the token's smallest unit
@@ -59,22 +58,18 @@ static TRANSFER_EVENT_SIGNATURE: Lazy<FixedBytes<32>> =
 pub fn query_erc20_balance<DB,INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     token_address: Address,
-    owner: Address,
-    block_env:Option<BlockEnv>
+    owner: Address
 ) -> Result<U256>
 where 
     DB: Database
-{   
-    if let Some(block_env) = block_env {
-        evm.set_block(block_env);
-    }
-
+{  
     let data:Bytes = balanceOfCall { owner: owner }.abi_encode().into();
     
     // Use zero address as caller for read-only calls (no nonce needed)
     let tx = TxEnv::builder()
         .caller(Address::ZERO)
         .kind(TxKind::Call(token_address))
+        .chain_id(Some(evm.cfg.chain_id))
         .data(data)
         .nonce(0)  // Read-only call, nonce doesn't matter
         .build_fill();
@@ -123,6 +118,7 @@ where
         caller: Address::ZERO,
         kind: TxKind::Call(token_address),
         data: name_encoded,
+        chain_id: Some(evm.cfg.chain_id),
         nonce: 0,
         ..Default::default()
     };
@@ -138,6 +134,7 @@ where
     let tx_symbol = TxEnv {
         caller: Address::ZERO,
         kind: TxKind::Call(token_address),
+        chain_id: Some(evm.cfg.chain_id),
         data: symbol_encoded,
         ..Default::default()
     };
@@ -153,6 +150,7 @@ where
     let tx_decimals = TxEnv {
         kind: TxKind::Call(token_address),
         data: decimals_encoded,
+        chain_id: Some(evm.cfg.chain_id),
         ..Default::default()
     };
     let ref_tx = evm.transact(tx_decimals).map_err(|e| anyhow::anyhow!("Failed to query token decimals: {}", e))?;
@@ -166,6 +164,7 @@ where
     let tx_total_supply = TxEnv {
         kind: TxKind::Call(token_address),
         data: total_supply_encoded,
+        chain_id: Some(evm.cfg.chain_id),
         ..Default::default()
     };
     let ref_tx = evm.transact(tx_total_supply).map_err(|e| anyhow::anyhow!("Failed to query token total supply: {}", e))?;
@@ -187,7 +186,6 @@ where
 /// # Arguments
 /// - `evm`: EVM instance for contract execution
 /// - `tokens`: Array of token contract addresses
-/// - `block_params`: Optional block context for queries
 ///
 /// # Returns
 /// - `Ok(Vec<TokenInfo>)`: Array of token information in the same order as input
@@ -195,15 +193,10 @@ where
 pub fn get_token_infos<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     tokens: &[Address],
-    block_env:Option<BlockEnv>
 ) -> Result<Vec<TokenInfo>,EvmError>
 where 
     DB: Database
 {   
-    if let Some(block_env) = block_env {
-        evm.set_block(block_env);
-    }
-
     let name_encoded: Bytes = nameCall { }.abi_encode().into();
     let symbol_encoded: Bytes = symbolCall { }.abi_encode().into();
     let decimals_encoded: Bytes = decimalsCall { }.abi_encode().into();

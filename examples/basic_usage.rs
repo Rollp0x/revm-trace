@@ -8,7 +8,7 @@
 //! - Display transfer information with proper token details
 
 use revm_trace::{
-    TransactionTrace,create_evm_with_tracer,
+    TransactionTrace,
     utils::erc20_utils::get_token_infos,
     SimulationBatch, SimulationTx, TxInspector
 };
@@ -17,6 +17,13 @@ use alloy::{
     primitives::{address, utils::format_units, Address, U256,TxKind}, 
     sol, sol_types::SolCall
 };
+
+
+#[cfg(not(feature = "foundry-fork"))]
+use revm_trace::create_evm_with_tracer;
+
+#[cfg(feature = "foundry-fork")]
+use revm_trace::create_shared_evm_with_tracer;
 
 // Define ERC20 interface for transfer function
 sol!(
@@ -37,17 +44,30 @@ fn encode_erc20_transfer(to: Address, amount: U256) -> Vec<u8> {
     ERC20::transferCall { to, amount }.abi_encode()
 }
 
-
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+
+    #[cfg(not(feature = "foundry-fork"))]
+    println!("Using AlloyDB backend for EVM simulation");
+    
+    #[cfg(feature = "foundry-fork")]
+    println!("Using Foundry fork backend for EVM simulation");
+    
     let inspector = TxInspector::new();
+
+    #[cfg(not(feature = "foundry-fork"))]
     let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
         inspector,
     ).await?;
 
+    #[cfg(feature = "foundry-fork")]
+    let mut evm = create_shared_evm_with_tracer(
+        ETH_RPC_URL,
+        inspector,
+    ).await?;
     // USDC proxy contract address
     let usdc = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
 
@@ -64,7 +84,6 @@ async fn main() -> Result<()> {
     };
 
     let result = &evm.trace_transactions(SimulationBatch {
-        block_env: None,
         is_stateful: false,
         transactions: vec![tx],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0];
@@ -72,7 +91,7 @@ async fn main() -> Result<()> {
     assert!(output.len() == 32 && output[31] == 1,"❌ Expected transfer to succeed");
     // Print results
     for transfer in &result.1.asset_transfers {
-        let token_info = &get_token_infos(&mut evm, &[transfer.token], None).unwrap()[0];
+        let token_info = &get_token_infos(&mut evm, &[transfer.token]).unwrap()[0];
 
         println!(
             "Transfer: {} {} -> {}: {}",

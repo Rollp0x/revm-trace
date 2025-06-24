@@ -11,7 +11,6 @@
 
 use std::collections::HashMap;
 use revm_trace::{
-    create_evm_with_tracer,
     TransactionTrace,
     types::{TokenInfo},
     utils::erc20_utils::get_token_infos,
@@ -24,6 +23,12 @@ use alloy::{
 };
 use prettytable::{format, Cell, Row, Table};
 use colored::*;
+
+#[cfg(not(feature = "foundry-fork"))]
+use revm_trace::create_evm_with_tracer;
+
+#[cfg(feature = "foundry-fork")]
+use revm_trace::create_shared_evm_with_tracer;
 
 // Define Uniswap V2 Router interface for swapping
 sol! {
@@ -76,12 +81,24 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    #[cfg(not(feature = "foundry-fork"))]
+    println!("Using AlloyDB backend for EVM simulation");
+    
+    #[cfg(feature = "foundry-fork")]
+    println!("Using Foundry fork backend for EVM simulation");
     // Create EVM instance with transaction tracing
     let inspector = TxInspector::new();
     // Create basic EVM instance without inspector
+     #[cfg(not(feature = "foundry-fork"))]
     let mut evm = create_evm_with_tracer(
         ETH_RPC_URL,
-        inspector
+        inspector,
+    ).await?;
+
+    #[cfg(feature = "foundry-fork")]
+    let mut evm = create_shared_evm_with_tracer(
+        ETH_RPC_URL,
+        inspector,
     ).await?;
     // Configure swap parameters
     let caller = address!("57757E3D981446D585Af0D9Ae4d7DF6D64647806");
@@ -119,7 +136,6 @@ async fn main() -> Result<()> {
 
     // Process transaction and get results
     let result = evm.trace_transactions(SimulationBatch {
-        block_env: None,
         transactions: vec![tx],
         is_stateful: true,
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0].clone();
@@ -149,7 +165,7 @@ async fn main() -> Result<()> {
         }
     }
     // Get token infos
-    let token_infos = get_token_infos(&mut evm,&tokens, None).unwrap();
+    let token_infos = get_token_infos(&mut evm,&tokens).unwrap();
     let mut token_info_map = HashMap::new();
     token_info_map.insert(Address::ZERO, TokenInfo{
         name: "Ethereum".to_string(),

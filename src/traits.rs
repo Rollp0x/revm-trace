@@ -4,7 +4,6 @@ use revm::context_interface::result::ExecutionResult;
 use revm::inspector::{Inspector,NoOpInspector};
 
 
-
 /// Defines how an inspector converts its state to a specific output type
 /// 
 /// This trait allows inspectors to provide their collected data in a
@@ -306,6 +305,24 @@ impl TraceOutput for NoOpInspector {
         // No output for NoOpInspector - returns unit type
         ()
     }
+}
+
+pub trait ResetBlock {
+    /// The error type returned when block reset operations fail
+    type Error;
+
+    /// Resets the block environment to its initial state
+    /// 
+    /// This operation should clear any modifications made to the block context,
+    /// restoring it to a clean state for new transactions.
+    /// 
+    /// # Arguments
+    /// * `block_number` - The block number to reset to
+    /// 
+    /// # Errors
+    /// 
+    /// Returns an error if the block reset operation fails.
+    fn reset_block(&mut self, block_number: u64) -> Result<(), Self::Error>;
 }
 
 // Note: NoOpInspector automatically implements TraceInspector<CTX> through the blanket implementation:

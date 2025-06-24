@@ -9,9 +9,11 @@ use alloy::{
 };
 use serde::Serialize;
 pub use revm::{
+    database::AlloyDB,
     interpreter::{CallScheme, CreateScheme},
     context::BlockEnv
 };
+use crate::MyWrapDatabaseAsync;
 
 // ========================= Provider Type Definitions =========================
 //
@@ -54,7 +56,11 @@ type AllFillers = JoinFill<Identity, GasFillers>;
 /// This is the primary provider type for single-threaded operations.
 pub type AnyNetworkProvider = FillProvider<AllFillers, RootProvider<AnyNetwork>, AnyNetwork>;
 
+pub type ArcAnyNetworkProvider = std::sync::Arc<AnyNetworkProvider>;
+
 pub const NATIVE_TOKEN_ADDRESS: Address = Address::ZERO;
+
+pub type AllDBType = MyWrapDatabaseAsync<AlloyDB<AnyNetwork,AnyNetworkProvider>>;
 
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -86,8 +92,6 @@ pub struct SimulationTx {
 /// configurable state handling between transactions.
 #[derive(Debug, Clone)]
 pub struct SimulationBatch {
-    /// Block env for all transactions in the batch
-    pub block_env: Option<BlockEnv>,
     /// Sequence of transactions to execute
     pub transactions: Vec<SimulationTx>,
     /// Whether to preserve state between transactions
@@ -188,5 +192,3 @@ pub struct CallTrace {
     /// Position in the call tree
     pub trace_address: Vec<usize>,
 }
-
-

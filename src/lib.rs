@@ -116,6 +116,7 @@
 //!     .caller(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
 //!     .kind(TxKind::Call(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")))
 //!     .value(U256::ZERO)
+//!     .chain_id(Some(evm.cfg.chain_id))
 //!     .build_fill();
 //!
 //! // Step 1: Set transaction
@@ -243,14 +244,23 @@ pub mod utils;
 pub mod traits;
 pub mod inspectors;
 pub mod errors;
+mod wrap_db;
 
 // Re-export core types for easier access
 pub use inspectors::tx_inspector::TxInspector;
-pub use evm::{TraceEvm, builder::*};
+pub use evm::{TraceEvm, builder::{
+    create_evm, create_evm_with_tracer,EvmBuilder
+}};
 pub use types::{BlockEnv, SimulationTx, SimulationBatch};
 pub use traits::*;
+pub use wrap_db::MyWrapDatabaseAsync;
 
 // Re-export core libraries for convenience
 pub use revm;
 pub use alloy;
+
+#[cfg(feature = "foundry-fork")]
 pub use foundry_fork_db;
+
+#[cfg(feature = "foundry-fork")]
+pub use evm::builder::fork_db::*;

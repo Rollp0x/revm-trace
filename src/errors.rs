@@ -52,6 +52,15 @@ pub enum InitError {
     /// Errors fetching the chain ID from the provider
     #[error("Failed to fetch chain ID: {0}")]
     ChainIdFetchError(String),
+
+    /// Errors related to block fetching
+    #[error("Failed to fetch block: {0}")]
+    BlockFetchError(String),
+
+    /// Errors related to block not found
+    #[error("Block not found: {0}")]
+    BlockNotFound(String),
+
 }
 
 /// Runtime execution errors

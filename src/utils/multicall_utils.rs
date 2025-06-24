@@ -23,8 +23,7 @@ use revm::{
 use crate::{
     evm::TraceEvm,
     traits::ResetDB,
-    errors::{RuntimeError,EvmError},
-    types::BlockEnv
+    errors::{RuntimeError,EvmError}
 };
 
 // Multicall3 interface - standard and widely supported
@@ -133,7 +132,7 @@ impl MulticallManager {
     /// let manager = MulticallManager::new();
     /// // The deploy_multicall method is internal - use deploy_and_batch_call instead
     /// let calls = vec![/* your multicall data */];
-    /// let _results = manager.deploy_and_batch_call(&mut evm, calls, false, None)?;
+    /// let _results = manager.deploy_and_batch_call(&mut evm, calls, false)?;
     /// # Ok(())
     /// # }
     /// ```
@@ -148,6 +147,7 @@ impl MulticallManager {
         let tx = TxEnv {
             kind: TxKind::Create,
             data: self.multicall_bytecode.clone(),
+            chain_id: Some(evm.cfg.chain_id),
             ..Default::default()
         };
         
@@ -190,19 +190,17 @@ impl MulticallManager {
     /// * `evm` - EVM instance for execution (must support database reset)
     /// * `calls` - Vector of MulticallCall structs defining target contracts and call data
     /// * `require_success` - Whether all calls must succeed (passed to tryAggregate)
-    /// * `block_env` - Optional block environment for simulation context
     ///
     /// # Returns
     /// * `Ok(Vec<MulticallResult>)` - Results for each call, including success status and return data
     /// * `Err(EvmError)` - If deployment or batch execution fails
     ///
     /// # Implementation Details
-    /// 1. Sets block environment if provided
-    /// 2. Resets database to ensure clean state for deployment
-    /// 3. Deploys Multicall contract using CREATE transaction
-    /// 4. Encodes batch call data using tryAggregate function
-    /// 5. Executes batch call transaction with appropriate nonce
-    /// 6. Decodes and returns individual call results
+    /// 1. Resets database to ensure clean state for deployment
+    /// 2. Deploys Multicall contract using CREATE transaction
+    /// 3. Encodes batch call data using tryAggregate function
+    /// 4. Executes batch call transaction with appropriate nonce
+    /// 5. Decodes and returns individual call results
     ///
     /// # Example
     /// ```no_run
@@ -220,7 +218,7 @@ impl MulticallManager {
     ///     },
     /// ];
     /// 
-    /// let results = manager.deploy_and_batch_call(&mut evm, calls, false, None)?;
+    /// let results = manager.deploy_and_batch_call(&mut evm, calls, false)?;
     /// for (i, result) in results.iter().enumerate() {
     ///     println!("Call {}: success={}, data={:?}", i, result.success, result.returnData);
     /// }
@@ -232,7 +230,6 @@ impl MulticallManager {
         evm: &mut TraceEvm<CacheDB<DB>, INSP>,
         calls: Vec<MulticallCall>,
         require_success: bool,
-        block_env: Option<BlockEnv>
     ) -> Result<Vec<MulticallResult>, EvmError>
     where
         DB: DatabaseRef,
@@ -240,11 +237,6 @@ impl MulticallManager {
         // Handle empty calls case
         if calls.is_empty() {
             return Ok(Vec::new());
-        }
-        
-        // Set block environment if provided
-        if let Some(block_env) = block_env {
-            evm.set_block(block_env);
         }
         
         // Reset database to ensure clean state for deployment
@@ -263,6 +255,7 @@ impl MulticallManager {
         let tx = TxEnv {
             kind: TxKind::Call(multicall_address),
             data: multicall_data.into(),
+            chain_id: Some(evm.cfg.chain_id),
             nonce: 1, // After deployment, nonce should start from 1
             ..Default::default()
         };

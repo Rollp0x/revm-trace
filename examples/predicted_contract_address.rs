@@ -4,7 +4,6 @@
 //! directly from ExecutionResult without using inspectors.
 
 use revm_trace::{
-    create_evm,
     SimulationBatch, SimulationTx,
 };
 use anyhow::Result;
@@ -16,6 +15,11 @@ use alloy::{
 };
 use revm::context_interface::result::ExecutionResult;
 
+#[cfg(not(feature = "foundry-fork"))]
+use revm_trace::create_evm;
+
+#[cfg(feature = "foundry-fork")]
+use revm_trace::create_shared_evm;
 
 // Define a simple contract
 sol! {
@@ -37,12 +41,19 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Testing contract address extraction from ExecutionResult...");
-    // Create basic EVM instance without inspector
-    let mut evm = create_evm(
-        ETH_RPC_URL,
-    ).await?;
-
     
+    #[cfg(not(feature = "foundry-fork"))]
+    println!("Using AlloyDB backend for EVM simulation");
+    
+    #[cfg(feature = "foundry-fork")]
+    println!("Using Foundry fork backend for EVM simulation");
+    // Create basic EVM instance without inspector
+    #[cfg(not(feature = "foundry-fork"))]
+    let mut evm = create_evm(ETH_RPC_URL).await?;
+
+    #[cfg(feature = "foundry-fork")]
+    let mut evm = create_shared_evm(ETH_RPC_URL).await?;
+
     // Predict contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
     let nonce = current_account.nonce;
@@ -59,7 +70,6 @@ async fn main() -> Result<()> {
     
     // Execute deployment
     let results = evm.execute_batch(SimulationBatch {
-        block_env: None,
         is_stateful: false,
         transactions: vec![deploy_tx],
     });

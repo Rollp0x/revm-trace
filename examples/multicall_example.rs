@@ -66,8 +66,7 @@ async fn main() -> Result<()> {
     let results = manager.deploy_and_batch_call(
         &mut evm,
         batch_calls,
-        true, // require success
-        None,
+        true // require success
     )?;
     
     println!("✅ Batch execution completed!");

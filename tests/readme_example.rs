@@ -1,9 +1,8 @@
 use revm_trace::{
-    create_evm_with_tracer,
-    utils::block_utils::get_block_env,
     TransactionTrace,
     types::{SimulationTx, SimulationBatch},
-    TxInspector
+    TxInspector,
+    EvmBuilder,
 };
 use alloy::primitives::{address, U256, TxKind};
 
@@ -14,10 +13,13 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 async fn test_basic_usage() -> anyhow::Result<()> {
     // Initialize EVM with transaction inspector
     let inspector = TxInspector::new();
-    let mut evm= create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
+    let mut evm = EvmBuilder::new_alloy(ETH_RPC_URL)
+        .with_block_number(21784863)
+        .with_tracer(inspector)
+        .build()
+        .await?;
+       
+    
     let sender = address!("C255fC198eEdAC7AF8aF0f6e0ca781794B094A61");
     // Create simulation transaction
     let tx = SimulationTx {
@@ -26,11 +28,9 @@ async fn test_basic_usage() -> anyhow::Result<()> {
         value: U256::from(120000000000000000u64), //  0.12 ETH
         data: vec![].into(),
     };
-    let block_env = get_block_env(21784863, 1700000000);
 
     // Create batch with single transaction
     let batch = SimulationBatch {
-        block_env: Some(block_env),
         transactions: vec![tx],
         is_stateful: false,
     };

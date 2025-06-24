@@ -44,6 +44,12 @@ use alloy::primitives::{Address,Log};
 /// - Logs: All emitted events
 /// - Call stack: Current execution path
 /// - Address stack: Caller context for delegate calls
+/// 
+/// # Thread Safety
+/// 
+/// This inspector is designed to be Send + Sync safe for multi-threaded usage.
+/// All internal state uses thread-safe types or types that can be safely
+/// moved between threads.
 #[derive(Default, Clone)]
 pub struct TxInspector {
     /// Chronological record of all asset transfers during execution
@@ -63,6 +69,10 @@ pub struct TxInspector {
     /// call_stack to maintain proper creation context.
     pending_create_transfers: Vec<(usize, TokenTransfer)>,
 }
+
+// 显式实现 Send 和 Sync 以确保多线程安全
+unsafe impl Send for TxInspector {}
+unsafe impl Sync for TxInspector {}
 
 /// Complete transaction execution trace output
 /// 

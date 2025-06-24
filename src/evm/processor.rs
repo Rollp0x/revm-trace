@@ -6,7 +6,7 @@
 
 use crate::{
     traits::{TransactionTrace,TraceOutput,ResetDB},
-    evm::{TraceEvm,builder::DefaultEvm},
+    evm::TraceEvm,
     types::{SimulationBatch,SimulationTx}
 };
 
@@ -60,7 +60,7 @@ where
             .map_err(|e| RuntimeError::ExecutionFailed(format!("Failed to get account info: {}", e)))?
             .map(|acc| acc.nonce)
             .unwrap_or_default();
-        
+        let chain_id = self.cfg.chain_id;
         // Build transaction environment
         let tx = TxEnv::builder()
             .caller(input.caller)
@@ -68,6 +68,7 @@ where
             .data(input.data)
             .kind(input.transact_to)
             .nonce(nonce)
+            .chain_id(Some(chain_id))
             .build_fill();
             
         // Set transaction and execute with current inspector, committing changes
@@ -120,7 +121,6 @@ where
     /// let tracer = TxInspector::new();
     /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
     /// let batch = SimulationBatch {
-    ///     block_env: None,
     ///     transactions: vec![/* transactions */],
     ///     is_stateful: true,
     /// };
@@ -134,15 +134,9 @@ where
     ) -> Vec<Result<(ExecutionResult, <Self::Inspector as TraceOutput>::Output), EvmError>> {
         
         let SimulationBatch {
-            block_env,
             transactions,
             is_stateful,
         } = batch;
-        
-        // 1. Set block environment if provided
-        if let Some(block_env) = block_env {
-            self.set_block(block_env);
-        }
         
         // 2. Reset database to clean state
         self.reset_db();
@@ -174,7 +168,11 @@ where
     }
 }
 
-impl DefaultEvm {
+impl<DB, INSP>  TraceEvm<CacheDB<DB>, INSP> 
+where
+    DB: DatabaseRef,
+    INSP: TraceInspector<MainnetContext<CacheDB<DB>>>,
+{
     /// Execute a batch of transactions and return only execution results
     ///
     /// This is a convenience method for users who only need transaction execution
@@ -194,7 +192,6 @@ impl DefaultEvm {
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut evm = create_evm("https://eth.llamarpc.com").await?;
     /// let batch = SimulationBatch {
-    ///     block_env: None,
     ///     transactions: vec![/* transactions */],
     ///     is_stateful: false,
     /// };

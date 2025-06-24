@@ -1,11 +1,16 @@
 use anyhow::Result;
 use alloy::primitives::{Address, utils::format_units};
 use revm_trace::{
-    create_evm,
     utils::erc20_utils::query_erc20_balance,
 };
 
-const RPC_URL: &str = "https://eth.llamarpc.com";
+#[cfg(not(feature = "foundry-fork"))]
+use revm_trace::create_evm;
+
+#[cfg(feature = "foundry-fork")]
+use revm_trace::create_shared_evm;
+
+const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 // USDC Address (Ethereum Mainnet)
 const USDC_ADDRESS: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
@@ -24,6 +29,13 @@ async fn main() -> Result<()> {
 
 async fn test_concurrent_erc20_queries() -> Result<()> {
     println!("🔍 Testing Concurrent ERC20 balance queries");
+
+    #[cfg(not(feature = "foundry-fork"))]
+    println!("Using AlloyDB backend for EVM simulation");
+    
+    #[cfg(feature = "foundry-fork")]
+    println!("Using Foundry fork backend for EVM simulation");
+
     
     // Binance addresses to query
     // These addresses are known to hold large amounts of USDC
@@ -43,13 +55,21 @@ async fn test_concurrent_erc20_queries() -> Result<()> {
     
     for (i, addr_str) in addresses.iter().enumerate() {
         let addr_str = addr_str.to_string();
-        let rpc_url = RPC_URL.to_string();
         
         let handle = tokio::spawn(async move {
-            let mut evm = create_evm(&rpc_url).await?;
+
+            #[cfg(not(feature = "foundry-fork"))]
+            let mut evm = create_evm(
+                ETH_RPC_URL
+            ).await?;
+
+            #[cfg(feature = "foundry-fork")]
+            let mut evm = create_shared_evm(
+                ETH_RPC_URL,
+            ).await?;
 
             let owner_address: Address = addr_str.parse()?;
-            let balance = query_erc20_balance(&mut evm, token_address, owner_address, None)?;
+            let balance = query_erc20_balance(&mut evm, token_address, owner_address)?;
             
             println!("🏦 Thread {}: USDC Balance of {}: {}", i + 1, addr_str, balance);
             

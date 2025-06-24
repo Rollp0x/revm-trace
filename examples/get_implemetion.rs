@@ -10,27 +10,41 @@
 
 use revm_trace::{
     utils::proxy_utils::get_implementation,
-    create_evm
 };
 use anyhow::Result;
 use alloy::primitives::address;
+
+#[cfg(not(feature = "foundry-fork"))]
+use revm_trace::create_evm;
+
+#[cfg(feature = "foundry-fork")]
+use revm_trace::create_shared_evm;
 
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Starting proxy implementation test...");
+
+    #[cfg(not(feature = "foundry-fork"))]
+    println!("Using AlloyDB backend for EVM simulation");
+    
+    #[cfg(feature = "foundry-fork")]
+    println!("Using Foundry fork backend for EVM simulation");
+
     // Create EVM instance without inspector since we're only reading state
-    let mut evm = create_evm(
-        ETH_RPC_URL
-    ).await?;
+    #[cfg(not(feature = "foundry-fork"))]
+    let mut evm = create_evm(ETH_RPC_URL).await?;
+
+    #[cfg(feature = "foundry-fork")]
+    let mut evm = create_shared_evm(ETH_RPC_URL).await?;
 
     // USDC uses the proxy pattern - this is the proxy contract address
     let usdc_proxy = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
     println!("📝 Testing USDC proxy contract at: {}", usdc_proxy);
 
     // Query the implementation contract address
-    let implementation_address = get_implementation(&mut evm, usdc_proxy, None).unwrap();
+    let implementation_address = get_implementation(&mut evm, usdc_proxy).unwrap();
 
     match implementation_address {
         Some(impl_addr) => {

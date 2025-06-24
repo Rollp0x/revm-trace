@@ -7,13 +7,11 @@ use alloy::primitives::{Address, U256};
 use anyhow::Result;
 use revm::{
     context_interface::ContextTr,
-    database::Database,
-    ExecuteEvm
+    database::Database
 };
 use crate::{
     evm::TraceEvm,
-    errors::BalanceError,
-    types::BlockEnv
+    errors::BalanceError
 };
 
 /// Query the native token balance of an address
@@ -23,7 +21,6 @@ use crate::{
 /// # Arguments
 /// - `evm`: EVM instance for state queries
 /// - `owner`: Address to query balance for
-/// - `block_env`: Optional block environment to query at
 ///
 /// # Returns
 /// - `Ok(U256)`: Account balance in wei
@@ -39,7 +36,6 @@ use crate::{
 /// let balance = query_balance(
 ///     &mut evm, 
 ///     address!("DFd5293D8e347dFe59E90eFd55b2956a1343963d"), 
-///     None
 /// )?;
 /// println!("Balance: {} wei", balance);
 /// # Ok(())
@@ -48,16 +44,10 @@ use crate::{
 pub fn query_balance<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     owner: Address,
-    block_env:Option<BlockEnv>
 ) -> Result<U256, BalanceError>
 where
     DB: Database
 {
-    // Set block context if specified
-    if let Some(block_env) = block_env {
-        evm.set_block(block_env);
-    }
-    
     // Query account state from database
     let db = evm.db();
     let account = db.basic(owner).map_err(|e| BalanceError::BalanceGetError { 

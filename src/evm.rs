@@ -30,7 +30,6 @@
 //! ```
 
 
-use revm::database::{CacheDB,DatabaseRef};
 pub use revm::{
     inspector::{NoOpInspector, Inspector},
     handler::MainnetContext,
@@ -39,12 +38,12 @@ pub use revm::{
     database::Database
 };
 use std::ops::{Deref, DerefMut};
-use crate::ResetDB;
 
 // Sub-modules for EVM functionality
 pub mod builder;
 pub mod processor;
 pub mod inspector;
+pub mod reset;
 
 /// Enhanced EVM wrapper with tracing capabilities
 ///
@@ -72,7 +71,6 @@ pub mod inspector;
 /// 
 /// // Create a sample batch (empty for demo)
 /// let batch = SimulationBatch {
-///     block_env: None,
 ///     transactions: vec![],
 ///     is_stateful: false,
 /// };
@@ -98,6 +96,7 @@ pub mod inspector;
 /// let tx = TxEnv::builder()
 ///     .caller(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
 ///     .kind(TxKind::Call(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")))
+///     .chain_id(Some(evm.cfg.chain_id))
 ///     .value(U256::ZERO)
 ///     .build_fill();
 /// 
@@ -266,55 +265,5 @@ where
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-// ========================= Database Management =========================
-
-/// Implementation for TraceEvm instances with CacheDB
-///
-/// Provides database cache management utilities specifically for EVM instances
-/// that use `CacheDB` as their database layer.
-impl<DB, INSP> ResetDB for TraceEvm<CacheDB<DB>, INSP> 
-where
-    DB: DatabaseRef,
-{
-    /// Reset the database cache to clear all cached state
-    ///
-    /// This method clears all cached data from the `CacheDB` layer, including:
-    /// - Account states and balances
-    /// - Contract bytecode and storage
-    /// - Event logs
-    /// - Block hashes
-    ///
-    /// # Use Cases
-    /// - Resetting state between independent transaction simulations
-    /// - Clearing cache when switching to a different block context
-    /// - Memory management in long-running applications
-    /// - Testing scenarios requiring clean state
-    ///
-    /// # Performance Impact
-    /// After calling this method, subsequent database queries will need to
-    /// fetch data from the underlying database layer, which may be slower
-    /// until the cache is repopulated.
-    ///
-    /// # Example
-    /// ```no_run
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// use revm_trace::{create_evm, traits::ResetDB};
-    /// 
-    /// let mut evm = create_evm("https://eth.llamarpc.com").await?;
-    /// 
-    /// // Clear cache before processing a new batch of transactions
-    /// evm.reset_db();
-    /// # Ok(())
-    /// # }
-    /// ```
-    fn reset_db(&mut self) {
-        let cached_db = &mut self.0.ctx.db().cache;
-        cached_db.accounts.clear();
-        cached_db.contracts.clear();
-        cached_db.logs = Vec::new();
-        cached_db.block_hashes.clear();
     }
 }

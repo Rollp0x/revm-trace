@@ -15,12 +15,10 @@ use once_cell::sync::Lazy;
 use std::str::FromStr;
 use revm::{
     database::Database, 
-    ExecuteEvm,
     context_interface::ContextTr
 };
 use crate::{
     evm::TraceEvm,
-    types::BlockEnv,
     errors::{EvmError, RuntimeError},
 };
 
@@ -92,7 +90,7 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 /// // USDT proxy contract
 /// let proxy = address!("dac17f958d2ee523a2206206994597c13d831ec7");
 ///
-/// if let Some(implementation) = get_implementation(&mut evm, proxy, None)? {
+/// if let Some(implementation) = get_implementation(&mut evm, proxy)? {
 ///     println!("Implementation found at: {}", implementation);
 /// } else {
 ///     println!("No implementation found (not a proxy)");
@@ -116,14 +114,10 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 pub fn get_implementation<DB,INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     proxy: Address,
-    block_env: Option<BlockEnv>,
 ) -> Result<Option<Address>, EvmError>
 where
     DB: Database
 {   
-    if let Some(block_env) = block_env {
-        evm.set_block(block_env);
-    }
     // First verify if the contract exists
     if evm.db().basic(proxy)
         .map_err(|e| RuntimeError::AccountAccess(format!("Get contract {} state failed: {}",proxy,e)))?
