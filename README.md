@@ -73,7 +73,7 @@ Perfect for:
 
 ---
 
-## Key Features
+### Key Features
 
 - **Flexible EVM Construction**: Unified builder pattern for AlloyDB and Foundry-fork-db backends.
 - **Customizable Inspector System**: Use built-in `TxInspector` or your own inspector for tracing and analysis.
@@ -84,6 +84,13 @@ Perfect for:
 - **Rich Utility Functions**: Includes tools for batch querying token balances, simulating Multicall deployment and batch execution, and more.
 - **Flexible Connection**: Supports both HTTP and WebSocket (ws/wss) endpoints for EVM construction.
 - **NFT (ERC721 & ERC1155) Transfer Analysis**: Automatically detects and parses NFT transfers, including tokenId extraction and type distinction.
+
+---
+
+### Advanced Usage & Extensibility
+- While `trace_transactions` provides a convenient batch simulation and tracing API for most use cases, advanced users can construct and control the EVM instance directly using REVM and this crate’s inspector system.
+- The core value of this crate lies in the `TxInspector` and its output `TxTraceOutput`, which provide detailed, structured tracing of transaction execution, asset transfers, call trees, events, and errors.
+- For custom analysis (e.g., storage slot changes, balance diffs, or other state introspection), users can run their own simulation loop, obtain `ResultAndState` from REVM, and combine it with `TxInspector` for maximum flexibility.
 
 ### TxInspector Highlights
 
@@ -100,7 +107,7 @@ Perfect for:
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-revm-trace = "4.0.1"
+revm-trace = "4.0.2"
 ```
 
 ### TLS Backend Selection
@@ -109,10 +116,10 @@ revm-trace = "4.0.1"
 
 ```toml
 # Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
-revm-trace = "4.0.1"
+revm-trace = "4.0.2"
 
 # Option 2: Pure Rust TLS with rustls for system-dependency-free builds
-revm-trace = { version = "4.0.1", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "4.0.2", default-features = false, features = ["rustls-tls"] }
 ```
 
 ---
