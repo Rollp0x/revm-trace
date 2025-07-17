@@ -1,28 +1,27 @@
 //! Uniswap V2 Swap Transaction Simulation Example
-//! 
+//!
 //! This example demonstrates how to:
 //! - Set up an EVM instance with transaction tracing
 //! - Encode Uniswap V2 swap function calls
 //! - Track token transfers during swap execution
 //! - Format and display swap results in a readable table
-//! 
+//!
 //! Note: This example simulates a swap of ETH -> USDC using the Uniswap V2 router.
 //! Results may vary based on pool state at different blocks.
 
-use std::collections::HashMap;
-use revm_trace::{
-    TransactionTrace,
-    types::{TokenInfo},
-    utils::erc20_utils::get_token_infos,
-    SimulationBatch, SimulationTx, TxInspector
+use alloy::{
+    primitives::{address, Address, TxKind, U256},
+    sol,
+    sol_types::SolCall,
 };
 use anyhow::Result;
-use alloy::{
-    primitives::{address, Address, U256,TxKind},  
-    sol, sol_types::SolCall
-};
-use prettytable::{format, Cell, Row, Table};
 use colored::*;
+use prettytable::{format, Cell, Row, Table};
+use revm_trace::{
+    types::TokenInfo, utils::erc20_utils::get_token_infos, SimulationBatch, SimulationTx,
+    TransactionTrace, TxInspector,
+};
+use std::collections::HashMap;
 
 #[cfg(not(feature = "foundry-fork"))]
 use revm_trace::create_evm_with_tracer;
@@ -55,7 +54,7 @@ sol! {
 ///
 /// # Returns
 /// Formatted string with proper decimal point placement
-/// 
+///
 /// # Example
 /// ```
 /// let amount = U256::from(1234567890);
@@ -76,30 +75,23 @@ fn format_amount(amount: U256, decimals: u8) -> String {
         .to_string()
 }
 
-
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
     #[cfg(not(feature = "foundry-fork"))]
     println!("Using AlloyDB backend for EVM simulation");
-    
+
     #[cfg(feature = "foundry-fork")]
     println!("Using Foundry fork backend for EVM simulation");
     // Create EVM instance with transaction tracing
     let inspector = TxInspector::new();
     // Create basic EVM instance without inspector
-     #[cfg(not(feature = "foundry-fork"))]
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
+    #[cfg(not(feature = "foundry-fork"))]
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector).await?;
 
     #[cfg(feature = "foundry-fork")]
-    let mut evm = create_shared_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
+    let mut evm = create_shared_evm_with_tracer(ETH_RPC_URL, inspector).await?;
     // Configure swap parameters
     let caller = address!("57757E3D981446D585Af0D9Ae4d7DF6D64647806");
     let router = address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D");
@@ -127,7 +119,7 @@ async fn main() -> Result<()> {
 
     // Create and execute swap transaction
     println!("Executing swap of {} ETH...\n", "0.1".bold());
-    let tx = SimulationTx{
+    let tx = SimulationTx {
         caller,
         transact_to: TxKind::Call(router),
         value: swap_amount,
@@ -135,18 +127,20 @@ async fn main() -> Result<()> {
     };
 
     // Process transaction and get results
-    let result = evm.trace_transactions(SimulationBatch {
-        transactions: vec![tx],
-        is_stateful: true,
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0].clone();
+    let result = evm
+        .trace_transactions(SimulationBatch {
+            transactions: vec![tx],
+            is_stateful: true,
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>()[0]
+        .clone();
 
     // Verify transaction success
     println!("\nTransaction Result:");
     println!("-----------------");
-    assert!(
-        result.0.is_success(),
-        "❌ Swap failed"
-    );
+    assert!(result.0.is_success(), "❌ Swap failed");
 
     // Format results in a table
     let mut table = Table::new();
@@ -160,25 +154,27 @@ async fn main() -> Result<()> {
     // Get all unique tokens
     let mut tokens = vec![];
     for transfer in &result.1.asset_transfers {
-        if !tokens.contains(&transfer.token)  && transfer.token != Address::ZERO {
+        if !tokens.contains(&transfer.token) && transfer.token != Address::ZERO {
             tokens.push(transfer.token);
         }
     }
     // Get token infos
-    let token_infos = get_token_infos(&mut evm,&tokens).unwrap();
+    let token_infos = get_token_infos(&mut evm, &tokens).unwrap();
     let mut token_info_map = HashMap::new();
-    token_info_map.insert(Address::ZERO, TokenInfo{
-        name: "Ethereum".to_string(),
-        symbol: "ETH".to_string(),
-        decimals: 18,
-        total_supply: U256::MAX
-    });
-    for (i,token_info) in token_infos.into_iter().enumerate() {
+    token_info_map.insert(
+        Address::ZERO,
+        TokenInfo {
+            name: "Ethereum".to_string(),
+            symbol: "ETH".to_string(),
+            decimals: 18,
+            total_supply: U256::MAX,
+        },
+    );
+    for (i, token_info) in token_infos.into_iter().enumerate() {
         token_info_map.insert(tokens[i], token_info);
     }
     // Add transfers to table
     for transfer in &result.1.asset_transfers {
-        
         let amount = if let Some(info) = token_info_map.get(&transfer.token) {
             format_amount(transfer.value, info.decimals)
         } else {
@@ -201,7 +197,6 @@ async fn main() -> Result<()> {
     println!("Swap Results:");
     println!("------------");
     table.printstd();
-
 
     println!(
         "\n{}",

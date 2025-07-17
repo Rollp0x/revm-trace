@@ -3,11 +3,11 @@
 //! This module provides inspector-specific functionality for the TraceEvm,
 //! allowing access to trace data and inspector state management.
 
-use revm::database::Database;
-use crate::traits::{TraceOutput,Reset};
 use crate::evm::TraceEvm;
+use crate::traits::{Reset, TraceOutput};
+use revm::database::Database;
 
-impl<DB,INSP> TraceEvm<DB,INSP> 
+impl<DB, INSP> TraceEvm<DB, INSP>
 where
     DB: Database,
     INSP: TraceOutput + Reset,
@@ -20,11 +20,11 @@ where
     /// # Examples
     /// ```no_run
     /// use revm_trace::{create_evm_with_tracer, TxInspector};
-    /// 
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let trace_inspector = TxInspector::new();
     /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
-    /// 
+    ///
     /// // After processing transactions...
     /// let trace_output = evm.get_inspector_output();
     /// println!("Collected trace data: {:?}", trace_output);
@@ -47,17 +47,17 @@ where
     /// # Examples
     /// ```no_run
     /// use revm_trace::{create_evm_with_tracer, TxInspector};
-    /// 
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let trace_inspector = TxInspector::new();
     /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
-    /// 
+    ///
     /// // Process first transaction...
     /// // let result1 = evm.process_transaction(tx1).await?;
-    /// 
+    ///
     /// // Reset before processing next transaction
     /// evm.reset_inspector();
-    /// 
+    ///
     /// // Process second transaction with clean state...
     /// // let result2 = evm.process_transaction(tx2).await?;
     /// # Ok(())

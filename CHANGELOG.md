@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.0.0] - 2024-06-22
+## [4.0.1] - 2025-7-17
+
+### Added
+- **NFT Support**: `TokenTransfer` now supports NFT transfers, including both ERC721 and ERC1155 tokens.
+    - The `token_type` field distinguishes between ERC20, ERC721, ERC1155, and native tokens.
+    - The `id` field records the tokenId for ERC721 and ERC1155 transfers.
+- All transfer parsing and tracing APIs now handle ERC20, ERC721, ERC1155, and native asset transfers in a unified way.
+
+### Changed
+- `TokenTransfer` struct updated:
+    - Added `token_type: TokenType` and `id: Option<U256>` fields.
+    - Documentation and examples updated to reflect NFT support.
+
+
+## [4.0.0] - 2025-06-24
 
 ### 🚀 Major Breaking Changes & Features
 
@@ -23,7 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Utility functions no longer accept `block_env`; block context is set at EVM creation.
 - API and example usage patterns have changed—see README for migration guidance.
 
----
 
 ## [3.1.1] - 2025-06-22
 

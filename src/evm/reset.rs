@@ -1,17 +1,15 @@
 use crate::{
-    TraceEvm,
     errors::EvmError,
-    types::{AllDBType},
-    traits::{ResetDB,ResetBlock}
+    traits::{ResetBlock, ResetDB},
+    types::AllDBType,
+    TraceEvm,
 };
-use alloy::{
-    eips::{BlockId,BlockNumberOrTag}
-};
+use alloy::eips::{BlockId, BlockNumberOrTag};
 use revm::{
-    database::{CacheDB, DatabaseRef},
     context::BlockEnv,
+    context_interface::ContextTr,
+    database::{CacheDB, DatabaseRef},
     ExecuteEvm,
-    context_interface::ContextTr
 };
 // ========================= Database Management =========================
 
@@ -19,7 +17,7 @@ use revm::{
 ///
 /// Provides database cache management utilities specifically for EVM instances
 /// that use `CacheDB` as their database layer.
-impl<DB, INSP> ResetDB for TraceEvm<CacheDB<DB>, INSP> 
+impl<DB, INSP> ResetDB for TraceEvm<CacheDB<DB>, INSP>
 where
     DB: DatabaseRef,
 {
@@ -46,9 +44,9 @@ where
     /// ```no_run
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// use revm_trace::{create_evm, traits::ResetDB};
-    /// 
+    ///
     /// let mut evm = create_evm("https://eth.llamarpc.com").await?;
-    /// 
+    ///
     /// // Clear cache before processing a new batch of transactions
     /// evm.reset_db();
     /// # Ok(())
@@ -63,8 +61,6 @@ where
     }
 }
 
-
-
 impl ResetBlock for AllDBType {
     type Error = EvmError;
     fn reset_block(&mut self, block_number: u64) -> Result<(), EvmError> {
@@ -74,7 +70,6 @@ impl ResetBlock for AllDBType {
         Ok(())
     }
 }
-
 
 // Generic set_db_block implementation for any database type implementing ResetBlock
 impl<DB, INSP> TraceEvm<CacheDB<DB>, INSP>
@@ -103,7 +98,6 @@ where
         Ok(())
     }
 }
-
 
 #[cfg(feature = "foundry-fork")]
 use foundry_fork_db::backend::SharedBackend;

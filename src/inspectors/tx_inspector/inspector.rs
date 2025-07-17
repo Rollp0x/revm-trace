@@ -1,11 +1,11 @@
 //! REVM Inspector implementation for transaction tracing
-//! 
+//!
 //! This module implements the core REVM Inspector hooks to track:
 //! - Contract calls and creations
 //! - Asset transfers (ETH and ERC20)
 //! - Event logs and state changes
 //! - Call hierarchy and execution flow
-//! 
+//!
 //! The implementation carefully handles special cases like:
 //! - Delegate calls and their caller context
 //! - Contract creation address resolution
@@ -15,43 +15,33 @@
 use crate::TxInspector;
 use revm::{
     context::ContextTr,
-    Inspector,
     interpreter::{
-        CallInputs, 
-        CallOutcome, 
-        CreateInputs, 
-        CreateOutcome,
-        CallScheme,
-        Interpreter,
+        CallInputs, CallOutcome, CallScheme, CreateInputs, CreateOutcome, Interpreter,
         InterpreterTypes,
     },
+    Inspector,
 };
-use crate::utils::erc20_utils::parse_transfer_log;
+
 use crate::types::*;
 use alloy::primitives::{Address, Bytes, Log, U256};
 
-impl<CTX, INTR> Inspector<CTX, INTR> for TxInspector 
-where 
+impl<CTX, INTR> Inspector<CTX, INTR> for TxInspector
+where
     CTX: ContextTr,
     INTR: InterpreterTypes,
 {
-
     /// Handles contract calls (both regular and delegate)
-    /// 
+    ///
     /// # Processing Steps
     /// 1. Determines effective caller based on call context
     /// 2. Records any ETH transfers
     /// 3. Updates address stack for delegate calls
     /// 4. Creates and stores call trace entry
-    /// 
+    ///
     /// # Special Cases
     /// - Delegate calls: Maintains original caller
     /// - Value transfers: Only tracked for regular calls
-    fn call(
-        &mut self,
-        context: &mut CTX,
-        inputs: &mut CallInputs,
-    ) -> Option<CallOutcome> {
+    fn call(&mut self, context: &mut CTX, inputs: &mut CallInputs) -> Option<CallOutcome> {
         let from = self.address_stack.last().copied().unwrap_or(inputs.caller);
         let to = match inputs.scheme {
             CallScheme::DelegateCall => inputs.bytecode_address,
@@ -60,11 +50,15 @@ where
 
         // Track ETH transfers
         if let Some(value) = inputs.transfer_value() {
-            if value > U256::ZERO && (inputs.scheme == CallScheme::Call || inputs.scheme == CallScheme::CallCode) {
+            if value > U256::ZERO
+                && (inputs.scheme == CallScheme::Call || inputs.scheme == CallScheme::CallCode)
+            {
                 self.transfers.push(TokenTransfer {
                     token: NATIVE_TOKEN_ADDRESS,
                     from: inputs.transfer_from(),
                     to: Some(inputs.transfer_to()),
+                    token_type: TokenType::Native,
+                    id: None,
                     value,
                 });
             }
@@ -105,20 +99,16 @@ where
     }
 
     /// Processes contract creation transactions
-    /// 
+    ///
     /// # Processing Steps
     /// 1. Records initial ETH transfer (if any)
     /// 2. Creates pending transfer record
     /// 3. Initializes creation trace entry
     /// 4. Updates call stack
-    /// 
+    ///
     /// # Note
     /// Contract address is initially unknown and updated in create_end
-    fn create(
-        &mut self,
-        _context: &mut CTX,
-        inputs: &mut CreateInputs,
-    ) -> Option<CreateOutcome> {
+    fn create(&mut self, _context: &mut CTX, inputs: &mut CreateInputs) -> Option<CreateOutcome> {
         let from = inputs.caller;
         self.address_stack.push(from);
 
@@ -127,11 +117,14 @@ where
             let transfer = TokenTransfer {
                 token: NATIVE_TOKEN_ADDRESS,
                 from,
-                to: None,  // Updated in create_end
+                to: None, // Updated in create_end
+                token_type: TokenType::Native,
+                id: None,
                 value: inputs.value,
             };
             self.transfers.push(transfer.clone());
-            self.pending_create_transfers.push((self.transfers.len() - 1, transfer));
+            self.pending_create_transfers
+                .push((self.transfers.len() - 1, transfer));
         }
 
         // Create trace entry
@@ -143,7 +136,7 @@ where
 
         let trace = CallTrace {
             from,
-            to: Address::ZERO,  // Updated in create_end
+            to: Address::ZERO, // Updated in create_end
             value: inputs.value,
             input: inputs.init_code.clone(),
             call_scheme: None,
@@ -162,32 +155,31 @@ where
     }
 
     /// Finalizes a contract call
-    /// 
+    ///
     /// # Processing Steps
     /// 1. Updates call trace with results
     /// 2. Processes any error information
     /// 3. Maintains address stack
-    /// 
+    ///
     /// # Special Handling
     /// - Delegate calls: Address stack maintained differently
     /// - Errors: Captured and formatted appropriately
-    fn call_end(
-        &mut self,
-        _context: &mut CTX,
-        _inputs: &CallInputs,
-        outcome: &mut CallOutcome,
-    )  {
-        self.handle_end(outcome.result.result, outcome.result.gas.spent(), outcome.result.output.clone());
+    fn call_end(&mut self, _context: &mut CTX, _inputs: &CallInputs, outcome: &mut CallOutcome) {
+        self.handle_end(
+            outcome.result.result,
+            outcome.result.gas.spent(),
+            outcome.result.output.clone(),
+        );
         self.address_stack.pop();
     }
 
     /// Finalizes contract creation
-    /// 
+    ///
     /// # Processing Steps
     /// 1. Updates trace with actual contract address
     /// 2. Resolves pending transfer recipient
     /// 3. Updates execution status
-    /// 
+    ///
     /// # Important
     /// This is where the contract address becomes known and
     /// all pending references are updated
@@ -212,44 +204,36 @@ where
             }
         }
         // handle_end will pop the call_stack
-        self.handle_end(outcome.result.result, outcome.result.gas.spent(), outcome.result.output.clone());
+        self.handle_end(
+            outcome.result.result,
+            outcome.result.gas.spent(),
+            outcome.result.output.clone(),
+        );
         self.address_stack.pop();
     }
 
     /// Processes emitted event logs
-    /// 
+    ///
     /// # Processing Steps
     /// 1. Records all logs for complete history
-    /// 2. Parses ERC20 Transfer events
+    /// 2. Parses ERC20/ERC721/ERC1155 Transfer events
     /// 3. Records token transfers if detected
-    /// 
+    ///
     /// # Note
-    /// Special attention to ERC20 Transfer events for
+    /// Special attention to ERC20/ERC721/ERC1155 Transfer events for
     /// accurate token transfer tracking
-    fn log(
-        &mut self, 
-        _interp: &mut Interpreter<INTR>, 
-        _context: &mut CTX, 
-        log: Log
-    ) {
+    fn log(&mut self, _interp: &mut Interpreter<INTR>, _context: &mut CTX, log: Log) {
         self.logs.push(log.clone());
-        
-        if let Some((from, to, amount)) = parse_transfer_log(log.topics(), &log.data.data) {
-            self.transfers.push(TokenTransfer {
-                token: log.address,
-                from,
-                to: Some(to),
-                value: amount,
-            });
-        }
+        let mut transfers = TokenTransfer::get_token_transfers(&log);
+        self.transfers.append(&mut transfers);
     }
 
     /// Handles contract self-destruction
-    /// 
+    ///
     /// # Processing Steps
     /// 1. Records final balance transfer
     /// 2. Only processes non-zero value transfers
-    /// 
+    ///
     /// # Note
     /// This is the final transfer of a contract's remaining balance
     /// before it is destroyed
@@ -260,8 +244,9 @@ where
                 from: contract,
                 to: Some(target),
                 value,
+                token_type: TokenType::Native,
+                id: None,
             });
         }
     }
 }
-

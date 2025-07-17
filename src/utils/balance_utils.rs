@@ -1,18 +1,11 @@
-
 //! Balance query utilities for EVM accounts
 //!
 //! Provides functions to query native token (ETH) balances from blockchain state.
 
+use crate::{errors::BalanceError, evm::TraceEvm};
 use alloy::primitives::{Address, U256};
 use anyhow::Result;
-use revm::{
-    context_interface::ContextTr,
-    database::Database
-};
-use crate::{
-    evm::TraceEvm,
-    errors::BalanceError
-};
+use revm::{context_interface::ContextTr, database::Database};
 
 /// Query the native token balance of an address
 ///
@@ -34,8 +27,8 @@ use crate::{
 ///
 /// let mut evm = create_evm("https://eth-mainnet.g.alchemy.com/v2/your-key").await?;
 /// let balance = query_balance(
-///     &mut evm, 
-///     address!("DFd5293D8e347dFe59E90eFd55b2956a1343963d"), 
+///     &mut evm,
+///     address!("DFd5293D8e347dFe59E90eFd55b2956a1343963d"),
 /// )?;
 /// println!("Balance: {} wei", balance);
 /// # Ok(())
@@ -46,15 +39,15 @@ pub fn query_balance<DB, INSP>(
     owner: Address,
 ) -> Result<U256, BalanceError>
 where
-    DB: Database
+    DB: Database,
 {
     // Query account state from database
     let db = evm.db();
-    let account = db.basic(owner).map_err(|e| BalanceError::BalanceGetError { 
-        holder: owner.to_string(), 
-        reason: e.to_string() 
+    let account = db.basic(owner).map_err(|e| BalanceError::BalanceGetError {
+        holder: owner.to_string(),
+        reason: e.to_string(),
     })?;
-    
+
     // Return balance (default to 0 if account doesn't exist)
     let account = account.unwrap_or_default();
     Ok(account.balance)

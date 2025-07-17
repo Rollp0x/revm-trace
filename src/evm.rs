@@ -22,27 +22,26 @@
 //! use revm_trace::{create_evm_with_tracer, TxInspector};
 //! let tracer = TxInspector::new();
 //! let evm_with_tracer = create_evm_with_tracer(
-//!     "https://eth-mainnet.g.alchemy.com/v2/your-key", 
+//!     "https://eth-mainnet.g.alchemy.com/v2/your-key",
 //!     tracer
 //! ).await?;
 //! # Ok(())
 //! # }
 //! ```
 
-
 pub use revm::{
-    inspector::{NoOpInspector, Inspector},
-    handler::MainnetContext,
-    MainnetEvm,
     context_interface::ContextTr,
-    database::Database
+    database::Database,
+    handler::MainnetContext,
+    inspector::{Inspector, NoOpInspector},
+    MainnetEvm,
 };
 use std::ops::{Deref, DerefMut};
 
 // Sub-modules for EVM functionality
 pub mod builder;
-pub mod processor;
 pub mod inspector;
+pub mod processor;
 pub mod reset;
 
 /// Enhanced EVM wrapper with tracing capabilities
@@ -65,16 +64,16 @@ pub mod reset;
 /// ```no_run
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// use revm_trace::{create_evm_with_tracer, TxInspector, types::SimulationBatch, traits::TransactionTrace};
-/// 
+///
 /// let tracer = TxInspector::new();
 /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
-/// 
+///
 /// // Create a sample batch (empty for demo)
 /// let batch = SimulationBatch {
 ///     transactions: vec![],
 ///     is_stateful: false,
 /// };
-/// 
+///
 /// // High-level batch processing with automatic state management
 /// let results = evm.trace_transactions(batch);
 /// # Ok(())
@@ -88,10 +87,10 @@ pub mod reset;
 /// use revm::context::TxEnv;
 /// use revm::{ExecuteEvm, InspectCommitEvm};
 /// use alloy::primitives::{address, U256, TxKind};
-/// 
+///
 /// let tracer = TxInspector::new();
 /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", tracer).await?;
-/// 
+///
 /// // Create a sample transaction
 /// let tx = TxEnv::builder()
 ///     .caller(address!("d8dA6BF26964aF9D7eEd9e03E53415D37aA96045"))
@@ -99,22 +98,22 @@ pub mod reset;
 ///     .chain_id(Some(evm.cfg.chain_id))
 ///     .value(U256::ZERO)
 ///     .build_fill();
-/// 
+///
 /// // Manual transaction execution with fine-grained control
 /// evm.set_tx(tx);
 /// let result = evm.inspect_replay_commit()?;  // Explicit Inspector activation
-/// 
+///
 /// // Access Inspector data at any time
 /// let transfers = evm.get_inspector().get_transfers();
 /// let traces = evm.get_inspector().get_traces();
-/// 
+///
 /// // Manual state management
 /// evm.reset_inspector();  // Clear state for next transaction
 /// # Ok(())
 /// # }
 /// ```
 ///
-/// **Important**: Modern REVM requires explicit `inspect_replay_commit()` calls to activate 
+/// **Important**: Modern REVM requires explicit `inspect_replay_commit()` calls to activate
 /// Inspector hooks. The convenience functions like `trace_transactions()` automate this process.
 ///
 /// # Examples
@@ -130,15 +129,13 @@ pub mod reset;
 /// use revm_trace::{create_evm_with_tracer, TxInspector};
 /// let tracer = TxInspector::new();
 /// let evm_with_tracer = create_evm_with_tracer(
-///     "https://eth-mainnet.g.alchemy.com/v2/your-key", 
+///     "https://eth-mainnet.g.alchemy.com/v2/your-key",
 ///     tracer
 /// ).await?;
 /// # Ok(())
 /// # }
 /// ```
-pub struct TraceEvm<DB: Database, INSP>(
-    MainnetEvm<MainnetContext<DB>, INSP>
-);
+pub struct TraceEvm<DB: Database, INSP>(MainnetEvm<MainnetContext<DB>, INSP>);
 
 impl<DB, INSP> TraceEvm<DB, INSP>
 where
@@ -165,7 +162,7 @@ where
     /// // Recommended: Use the builder functions
     /// let tracer = TxInspector::new();
     /// let trace_evm = create_evm_with_tracer(
-    ///     "https://eth.llamarpc.com", 
+    ///     "https://eth.llamarpc.com",
     ///     tracer
     /// ).await?; // Already returns TraceEvm
     ///
@@ -191,27 +188,27 @@ where
     /// for better code clarity.
     ///
     /// # Examples
-    /// 
+    ///
     /// ## With TxInspector
     /// ```no_run
     /// use revm_trace::{create_evm_with_tracer, TxInspector};
-    /// 
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let trace_inspector = TxInspector::new();
     /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", trace_inspector).await?;
-    /// 
+    ///
     /// // After processing transactions, get direct access to TxInspector methods
     /// let inspector = evm.get_inspector();
-    /// 
+    ///
     /// // TxInspector-specific methods
     /// let transfers = inspector.get_transfers();
     /// let traces = inspector.get_traces();
     /// let logs = inspector.get_logs();
-    /// 
+    ///
     /// // Advanced error tracing methods
     /// let error_addr = inspector.get_error_trace_address();
     /// let error_trace = inspector.find_error_trace();
-    /// 
+    ///
     /// println!("Collected {} transfers", transfers.len());
     /// println!("Collected {} call traces", traces.len());
     /// # Ok(())
@@ -222,11 +219,11 @@ where
     /// ```no_run
     /// use revm_trace::create_evm_with_tracer;
     /// use revm::inspector::NoOpInspector;
-    /// 
+    ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let inspector = NoOpInspector;
     /// let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", inspector).await?;
-    /// 
+    ///
     /// // Access the NoOpInspector (though it has no specific methods)
     /// let inspector_ref = evm.get_inspector();
     /// # Ok(())

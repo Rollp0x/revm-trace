@@ -1,19 +1,17 @@
 //! Test getting contract address from ExecutionResult
-//! 
+//!
 //! This example demonstrates how to get deployed contract address
 //! directly from ExecutionResult without using inspectors.
 
-use revm_trace::{
-    SimulationBatch, SimulationTx,
+use alloy::{
+    primitives::{address, hex, Address, TxKind, U256},
+    sol,
 };
 use anyhow::Result;
-use revm::database::Database;
 use revm::context::ContextTr;
-use alloy::{
-    primitives::{address, hex, Address, U256,TxKind}, 
-    sol
-};
 use revm::context_interface::result::ExecutionResult;
+use revm::database::Database;
+use revm_trace::{SimulationBatch, SimulationTx};
 
 #[cfg(not(feature = "foundry-fork"))]
 use revm_trace::create_evm;
@@ -41,10 +39,10 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 #[tokio::main]
 async fn main() -> Result<()> {
     println!("Testing contract address extraction from ExecutionResult...");
-    
+
     #[cfg(not(feature = "foundry-fork"))]
     println!("Using AlloyDB backend for EVM simulation");
-    
+
     #[cfg(feature = "foundry-fork")]
     println!("Using Foundry fork backend for EVM simulation");
     // Create basic EVM instance without inspector
@@ -59,7 +57,7 @@ async fn main() -> Result<()> {
     let nonce = current_account.nonce;
     let predicted_address = SENDER.create(nonce);
     println!("Predicted contract address: {}", predicted_address);
-    
+
     // Deploy contract
     let deploy_tx = SimulationTx {
         caller: SENDER,
@@ -67,31 +65,35 @@ async fn main() -> Result<()> {
         value: U256::ZERO,
         data: hex::decode(BYTECODE).unwrap().into(),
     };
-    
+
     // Execute deployment
     let results = evm.execute_batch(SimulationBatch {
         is_stateful: false,
         transactions: vec![deploy_tx],
     });
-    
+
     // Check the result
     match &results[0] {
         Ok(execution_result) => {
             println!("Deployment successful!");
-            
+
             // Try to extract contract address from ExecutionResult
             match execution_result {
-                ExecutionResult::Success { output, .. } => {
-                    match output.address() {
-                        Some(address) => {
-                            println!("✅ Contract deployed at address: {}", address);
-                            assert_eq!(*address, predicted_address, "❌ Contract address does not match predicted address");
-                        }
-                        None=> {
-                            println!("❌ Created contract address is None, expected address: {}", predicted_address);
-                        }
+                ExecutionResult::Success { output, .. } => match output.address() {
+                    Some(address) => {
+                        println!("✅ Contract deployed at address: {}", address);
+                        assert_eq!(
+                            *address, predicted_address,
+                            "❌ Contract address does not match predicted address"
+                        );
                     }
-                }
+                    None => {
+                        println!(
+                            "❌ Created contract address is None, expected address: {}",
+                            predicted_address
+                        );
+                    }
+                },
                 _ => {
                     println!("❌ Deployment failed: {:?}", execution_result);
                 }
@@ -101,6 +103,6 @@ async fn main() -> Result<()> {
             println!("❌ Transaction failed: {:?}", e);
         }
     }
-    
+
     Ok(())
 }

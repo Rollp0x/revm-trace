@@ -1,28 +1,28 @@
 //! Trait implementations for TxInspector
-//! 
+//!
 //! This module implements the core traits required for the transaction inspector:
-//! 
+//!
 //! # Traits
-//! 
+//!
 //! - `Reset`: Manages inspector state between transactions
 //!   - Clears all internal collections
 //!   - Prepares inspector for new transaction
-//! 
+//!
 //! - `TraceOutput`: Converts collected data into final output format
 //!   - Aggregates all execution data
 //!   - Formats results for external consumption
-//! 
+//!
 //! These implementations enable the inspector to:
 //! - Maintain clean state between transactions
 //! - Provide standardized output format
 //! - Integrate with the broader tracing system
-use crate::traits::{Reset, TraceOutput};
-use crate::inspectors::tx_inspector::TxTraceOutput;
 use crate::inspectors::tx_inspector::TxInspector;
+use crate::inspectors::tx_inspector::TxTraceOutput;
+use crate::traits::{Reset, TraceOutput};
 
 impl Reset for TxInspector {
     /// Resets all internal state for processing a new transaction
-    /// 
+    ///
     /// Clears all collections:
     /// - Transfer records
     /// - Call traces
@@ -41,9 +41,9 @@ impl Reset for TxInspector {
 
 impl TraceOutput for TxInspector {
     type Output = TxTraceOutput;
-    
+
     /// Generates the final trace output from collected execution data
-    /// 
+    ///
     /// Returns a TxTraceOutput containing:
     /// - All asset transfers
     /// - Complete call tree
@@ -58,5 +58,3 @@ impl TraceOutput for TxInspector {
         }
     }
 }
-
-

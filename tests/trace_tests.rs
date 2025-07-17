@@ -23,18 +23,17 @@
 //! - Recent blocks: May succeed on regular nodes
 //! - Old blocks: Requires archive node access
 
-use revm_trace::{
-    create_evm_with_tracer,
-    TransactionTrace,
-    utils::error_utils::parse_custom_error, 
-    SimulationBatch, SimulationTx, TxInspector
-};
 use revm::context::ContextTr;
 use revm::database::Database;
+use revm_trace::{
+    create_evm_with_tracer, utils::error_utils::parse_custom_error, SimulationBatch, SimulationTx,
+    TransactionTrace, TxInspector,
+};
 
 use alloy::{
-    primitives::{address, hex, Address, U256,TxKind}, 
-    sol, sol_types::SolCall
+    primitives::{address, hex, Address, TxKind, U256},
+    sol,
+    sol_types::SolCall,
 };
 
 // Test contract definitions using alloy-sol macro
@@ -42,11 +41,11 @@ sol! {
     contract OwnerDemo {
         address public owner;
         address public revert_address;
-        
+
         constructor() {
             owner = msg.sender;
         }
-    
+
         function setOwner(address _owner) public {
             require(msg.sender == owner, "Only the owner can set the owner");
             owner = _owner;
@@ -60,7 +59,7 @@ sol! {
             RevertDemo(revert_address).revert_demo();
         }
 
-       
+
         function revert_demo_multi() public {
             // catch first call
             try RevertDemo(revert_address).revert_demo() {
@@ -69,7 +68,7 @@ sol! {
             } catch (bytes memory /*lowLevelData*/) {
                 // catch other errors
             }
-            
+
             // second call will cause actual revert
             RevertDemo(revert_address).revert_demo();
         }
@@ -79,7 +78,7 @@ sol! {
         function revert_demo() public {
             this.nested_revert();
         }
-        
+
         function nested_revert() public {
             revert("Revert demo");
         }
@@ -103,10 +102,7 @@ const REVERT_DEMO_BYTECODE:&str = "0x608060405234801561001057600080fd5b506101098
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector).await?;
 
     // get current nonce to calculate contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
@@ -131,9 +127,10 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     };
 
     // 3. call setRevertDemo to set revert_address
-    let data = OwnerDemo::setRevertDemoCall{
+    let data = OwnerDemo::setRevertDemoCall {
         _revert_address: revert_demo_address,
-    }.abi_encode();
+    }
+    .abi_encode();
     let tx2 = SimulationTx {
         caller: SENDER,
         transact_to: TxKind::Call(owner_demo_address),
@@ -142,31 +139,35 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     };
 
     // 4. call revert_demo_multi to trigger two calls
-    let data = OwnerDemo::revert_demo_multiCall{}.abi_encode();
+    let data = OwnerDemo::revert_demo_multiCall {}.abi_encode();
     let tx3 = SimulationTx {
         caller: SENDER,
         transact_to: TxKind::Call(owner_demo_address),
         value: U256::ZERO,
         data: data.into(),
     };
-    
+
     // execute all transactions
-    let results = evm.trace_transactions(SimulationBatch {
-        is_stateful: true,
-        transactions: vec![tx0, tx1, tx2, tx3],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: true,
+            transactions: vec![tx0, tx1, tx2, tx3],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
 
     // verify results
     assert_eq!(results.len(), 4, "Each tx should have an ExecutionResult");
-    
+
     // verify transaction failed
     assert!(!results[3].0.is_success(), "Tx should be failed");
     // verify error info (error from second call)
-    match &results[3].0.output()   {
+    match &results[3].0.output() {
         Some(output) => {
             let reason = parse_custom_error(output).unwrap();
             assert_eq!(reason, "Revert demo", "Should have correct revert reason");
-        },
+        }
         _ => panic!("Expected revert failure"),
     }
 
@@ -174,28 +175,60 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     let top_traces = &results[3].1.call_trace;
     assert!(top_traces.is_some(), "Tx should have one top-level traces");
     let top_traces = top_traces.as_ref().unwrap();
-    assert!(top_traces.trace_address.is_empty(), "Top-level trace should have empty trace_address");
-    assert_eq!(top_traces.subtraces.len(), 2, "Top-level trace should have two subtraces");
+    assert!(
+        top_traces.trace_address.is_empty(),
+        "Top-level trace should have empty trace_address"
+    );
+    assert_eq!(
+        top_traces.subtraces.len(),
+        2,
+        "Top-level trace should have two subtraces"
+    );
 
     // verify first call (catched by try-catch)
     let first_subtrace = &top_traces.subtraces[0];
-    assert_eq!(first_subtrace.trace_address, vec![0], "First subtrace should have trace_address [0]");
-    assert!(!first_subtrace.status.is_success(), "First subtrace should fail");
+    assert_eq!(
+        first_subtrace.trace_address,
+        vec![0],
+        "First subtrace should have trace_address [0]"
+    );
+    assert!(
+        !first_subtrace.status.is_success(),
+        "First subtrace should fail"
+    );
 
     // verify last call (cause actual revert)
     let last_trace = &top_traces.subtraces[1];
-    assert_eq!(last_trace.trace_address, vec![1], "Last call should have trace_address [1]");
+    assert_eq!(
+        last_trace.trace_address,
+        vec![1],
+        "Last call should have trace_address [1]"
+    );
     assert!(!last_trace.status.is_success(), "Last call should fail");
 
     // verify final call (caught by try-catch)
     let final_subtrace = &last_trace.subtraces[0];
-    assert_eq!(final_subtrace.trace_address, vec![1,0], "Final subtrace should have trace_address [1,0]");
-    assert!(!final_subtrace.status.is_success(), "Final subtrace should fail");
-    assert!(final_subtrace.error_origin, "Final subtrace should be error origin");
+    assert_eq!(
+        final_subtrace.trace_address,
+        vec![1, 0],
+        "Final subtrace should have trace_address [1,0]"
+    );
+    assert!(
+        !final_subtrace.status.is_success(),
+        "Final subtrace should fail"
+    );
+    assert!(
+        final_subtrace.error_origin,
+        "Final subtrace should be error origin"
+    );
 
     // verify error trace
     let error_trace_address = results[3].1.error_trace_address.as_ref().unwrap();
-    assert_eq!(*error_trace_address, vec![1,0], "Error trace should be from the second call");
+    assert_eq!(
+        *error_trace_address,
+        vec![1, 0],
+        "Error trace should be from the second call"
+    );
 
     Ok(())
 }
@@ -207,13 +240,9 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
 /// - Trace address tracking
 /// - Error origin identification
 #[tokio::test(flavor = "multi_thread")]
-async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {  
+async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
-
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector).await?;
 
     // get current nonce to calculate contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
@@ -239,9 +268,10 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
     };
 
     // 3. call setRevertDemo to set revert_address
-    let data = OwnerDemo::setRevertDemoCall{
+    let data = OwnerDemo::setRevertDemoCall {
         _revert_address: revert_demo_address,
-    }.abi_encode();
+    }
+    .abi_encode();
     let tx2 = SimulationTx {
         caller: SENDER,
         transact_to: TxKind::Call(owner_demo_address),
@@ -250,7 +280,7 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
     };
 
     // 4. call revert_demo to trigger nested call failure
-    let data = OwnerDemo::revert_demoCall{}.abi_encode();
+    let data = OwnerDemo::revert_demoCall {}.abi_encode();
     let tx3 = SimulationTx {
         caller: SENDER,
         transact_to: TxKind::Call(owner_demo_address),
@@ -259,23 +289,27 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
     };
 
     // execute all transactions
-    let results = evm.trace_transactions(SimulationBatch {
-        is_stateful: true,
-        transactions: vec![tx0, tx1, tx2, tx3],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: true,
+            transactions: vec![tx0, tx1, tx2, tx3],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
 
     // verify results
     assert_eq!(results.len(), 4, "Each tx should have one execution result");
-    
+
     // verify transaction failed
     assert!(!results[3].0.is_success(), "Tx3 should be failed");
-    
+
     // verify error info
-    match &results[3].0.output()   {
+    match &results[3].0.output() {
         Some(output) => {
             let reason = parse_custom_error(output).unwrap();
             assert_eq!(reason, "Revert demo", "Should have correct revert reason");
-        },
+        }
         _ => panic!("Expected revert failure"),
     }
 
@@ -283,21 +317,49 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
     let top_traces = &results[3].1.call_trace;
     assert!(top_traces.is_some(), "Tx should have one top-level traces");
     let top_traces = top_traces.as_ref().unwrap();
-    assert!(top_traces.trace_address.is_empty(), "Top-level trace should have empty trace_address");
-    assert_eq!(top_traces.subtraces.len(), 1, "Top-level trace should have two subtraces");
+    assert!(
+        top_traces.trace_address.is_empty(),
+        "Top-level trace should have empty trace_address"
+    );
+    assert_eq!(
+        top_traces.subtraces.len(),
+        1,
+        "Top-level trace should have two subtraces"
+    );
 
     let error_trace_address = results[3].1.error_trace_address.as_ref().unwrap();
-    assert_eq!(*error_trace_address, vec![0,0], "Error trace should be the latest call");
-    
+    assert_eq!(
+        *error_trace_address,
+        vec![0, 0],
+        "Error trace should be the latest call"
+    );
+
     let mid_trace = &top_traces.subtraces[0];
-    assert_eq!(mid_trace.trace_address, vec![0], "Mid trace should have trace_address [0]");
+    assert_eq!(
+        mid_trace.trace_address,
+        vec![0],
+        "Mid trace should have trace_address [0]"
+    );
     assert!(!mid_trace.status.is_success(), "Mid trace should be failed");
-    assert!(!mid_trace.error_origin, "Mid trace should not be error origin");
+    assert!(
+        !mid_trace.error_origin,
+        "Mid trace should not be error origin"
+    );
 
     let final_trace = &mid_trace.subtraces[0];
-    assert_eq!(final_trace.trace_address, vec![0,0], "Final trace should have trace_address [0,0]");
-    assert!(!final_trace.status.is_success(), "Final trace should be failed");
-    assert!(final_trace.error_origin, "Final trace should be error origin");
+    assert_eq!(
+        final_trace.trace_address,
+        vec![0, 0],
+        "Final trace should have trace_address [0,0]"
+    );
+    assert!(
+        !final_trace.status.is_success(),
+        "Final trace should be failed"
+    );
+    assert!(
+        final_trace.error_origin,
+        "Final trace should be error origin"
+    );
 
     Ok(())
 }
@@ -311,12 +373,7 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
-
-
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector).await?;
 
     // get current nonce to calculate contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
@@ -341,9 +398,10 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     };
 
     // 3. call setRevertDemo to set revert_address
-    let data = OwnerDemo::setRevertDemoCall{
+    let data = OwnerDemo::setRevertDemoCall {
         _revert_address: revert_demo_address,
-    }.abi_encode();
+    }
+    .abi_encode();
     let tx2 = SimulationTx {
         caller: SENDER,
         transact_to: TxKind::Call(owner_demo_address),
@@ -352,7 +410,7 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     };
 
     // 4. call revert_demo to trigger nested call failure
-    let data = OwnerDemo::revert_demoCall{}.abi_encode();
+    let data = OwnerDemo::revert_demoCall {}.abi_encode();
     let tx3 = SimulationTx {
         caller: SENDER,
         transact_to: TxKind::Call(owner_demo_address),
@@ -361,28 +419,45 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     };
 
     // execute all transactions
-    let results = evm.trace_transactions(SimulationBatch {
-        is_stateful: true,
-        transactions: vec![tx0, tx1, tx2, tx3],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: true,
+            transactions: vec![tx0, tx1, tx2, tx3],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
 
     // verify results
-    assert_eq!(results.len(), 4, "Should have results for all four transactions");
-    
+    assert_eq!(
+        results.len(),
+        4,
+        "Should have results for all four transactions"
+    );
+
     // verify first three calls succeed
-    assert!(results[0].0.is_success(), "ReverDemo deployment should succeed");
-    assert!(results[1].0.is_success(), "OwnerDemo deployment should succeed");
-    assert!(results[2].0.is_success(), "setRevertDemo call should succeed");
-    
+    assert!(
+        results[0].0.is_success(),
+        "ReverDemo deployment should succeed"
+    );
+    assert!(
+        results[1].0.is_success(),
+        "OwnerDemo deployment should succeed"
+    );
+    assert!(
+        results[2].0.is_success(),
+        "setRevertDemo call should succeed"
+    );
+
     // verify last call failed
     assert!(!results[3].0.is_success(), "revert_demo call should fail");
-    
+
     // verify error info
     match &results[3].0.output() {
         Some(output) => {
             let reason = parse_custom_error(output).unwrap();
             assert_eq!(reason, "Revert demo", "Should have correct revert reason");
-        },
+        }
         _ => panic!("Expected revert failure"),
     }
 
@@ -393,26 +468,50 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     assert_eq!(top_trace.from, SENDER);
     assert_eq!(top_trace.to, owner_demo_address);
     assert!(!top_trace.status.is_success(), "Top trace should be failed");
-    assert!(top_trace.trace_address.is_empty(), "Top trace should have empty trace_address");
-    assert!(!top_trace.error_origin, "Top trace should not be error origin");
-    
+    assert!(
+        top_trace.trace_address.is_empty(),
+        "Top trace should have empty trace_address"
+    );
+    assert!(
+        !top_trace.error_origin,
+        "Top trace should not be error origin"
+    );
+
     let sub_trace = &top_trace.subtraces[0];
     assert_eq!(sub_trace.from, owner_demo_address);
     assert_eq!(sub_trace.to, revert_demo_address);
-    assert_eq!(sub_trace.trace_address, vec![0], "Subtrace should have trace_address [0]");
+    assert_eq!(
+        sub_trace.trace_address,
+        vec![0],
+        "Subtrace should have trace_address [0]"
+    );
     assert!(!sub_trace.status.is_success(), "Subtrace should be failed");
-    assert!(!sub_trace.error_origin, "Subtrace should not be error origin");
+    assert!(
+        !sub_trace.error_origin,
+        "Subtrace should not be error origin"
+    );
 
     let final_trace = &sub_trace.subtraces[0];
     assert_eq!(final_trace.from, revert_demo_address);
     assert_eq!(final_trace.to, revert_demo_address);
-    assert_eq!(final_trace.trace_address, vec![0,0], "Subtrace should have trace_address [0]");
-    assert!(!final_trace.status.is_success(), "Subtrace should be failed");
+    assert_eq!(
+        final_trace.trace_address,
+        vec![0, 0],
+        "Subtrace should have trace_address [0]"
+    );
+    assert!(
+        !final_trace.status.is_success(),
+        "Subtrace should be failed"
+    );
     assert!(final_trace.error_origin, "Subtrace should  be error origin");
 
     // verify error trace
     let error_trace = results[3].1.error_trace_address.as_ref().unwrap();
-    assert_eq!(*error_trace, vec![0,0], "Error_trace should be same as final_trace");
+    assert_eq!(
+        *error_trace,
+        vec![0, 0],
+        "Error_trace should be same as final_trace"
+    );
 
     Ok(())
 }
@@ -424,12 +523,9 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
 /// - Error handling in multicall context
 /// - Transaction ordering and state changes
 #[tokio::test(flavor = "multi_thread")]
-async fn test_multicall_with_error() -> anyhow::Result<()>   {
+async fn test_multicall_with_error() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector).await?;
     // get current nonce to calculate contract address
     let current_account = evm.db().basic(SENDER).unwrap().unwrap();
     let nonce = current_account.nonce;
@@ -464,10 +560,14 @@ async fn test_multicall_with_error() -> anyhow::Result<()>   {
     };
 
     // execute batch transactions
-    let results = evm.trace_transactions(SimulationBatch {
-        is_stateful: true,
-        transactions: vec![tx0, tx1, tx2],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: true,
+            transactions: vec![tx0, tx1, tx2],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
 
     // verify results
     assert_eq!(results.len(), 3, "Each tx should have one execution result");
@@ -476,20 +576,31 @@ async fn test_multicall_with_error() -> anyhow::Result<()>   {
     match result.output() {
         Some(output) => {
             let reason = parse_custom_error(output).unwrap();
-            assert_eq!(reason, "Only the owner can set the owner", "Should fail with correct revert reason");
-        },
+            assert_eq!(
+                reason, "Only the owner can set the owner",
+                "Should fail with correct revert reason"
+            );
+        }
         _ => panic!("Expected revert failure"),
     }
 
     // verify error trace
-    
+
     let error_trace = results[1].1.call_trace.as_ref().unwrap();
-    assert_eq!(error_trace.from , CAFE_ADDRESS, "Error should come from CAFE_ADDRESS call");
-    assert_eq!(error_trace.to, expected_contract_address, "Error should be in contract call");
-    assert!(error_trace.trace_address.is_empty(), "Error should be in the top transaction");
+    assert_eq!(
+        error_trace.from, CAFE_ADDRESS,
+        "Error should come from CAFE_ADDRESS call"
+    );
+    assert_eq!(
+        error_trace.to, expected_contract_address,
+        "Error should be in contract call"
+    );
+    assert!(
+        error_trace.trace_address.is_empty(),
+        "Error should be in the top transaction"
+    );
 
     Ok(())
-    
 }
 
 /// Test contract creation and deployment
@@ -501,10 +612,9 @@ async fn test_multicall_with_error() -> anyhow::Result<()>   {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_create_contract() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await.unwrap();
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector)
+        .await
+        .unwrap();
 
     let sender = address!("b20a608c624Ca5003905aA834De7156C68b2E1d0");
     let current_account = evm.db().basic(sender).unwrap().unwrap();
@@ -512,17 +622,21 @@ async fn test_create_contract() {
     let expected_contract_address = sender.create(nonce);
 
     let data = hex::decode(OWNER_DEMO_BYTECODE).unwrap();
-    
-    let tx0 = SimulationTx {    
+
+    let tx0 = SimulationTx {
         caller: sender,
         transact_to: TxKind::Create,
         value: U256::ZERO,
         data: data.into(),
     };
-    let results = evm.trace_transactions(SimulationBatch {
-        is_stateful: false,
-        transactions: vec![tx0],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: false,
+            transactions: vec![tx0],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
 
     assert_eq!(results.len(), 1, "Should have results for one transaction");
     let result = &results[0].0;
@@ -530,16 +644,18 @@ async fn test_create_contract() {
     // verify contract creation output
     let call_trace = &results[0].1.call_trace.as_ref().unwrap();
     assert_eq!(call_trace.from, sender, "Creator should match");
-    assert_eq!(call_trace.to, expected_contract_address, "Contract address should match");
+    assert_eq!(
+        call_trace.to, expected_contract_address,
+        "Contract address should match"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_stateful_and_stateless_call_trace() {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await.unwrap();
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector)
+        .await
+        .unwrap();
 
     let sender = address!("b20a608c624Ca5003905aA834De7156C68b2E1d0");
     let current_account = evm.db().basic(sender).unwrap().unwrap();
@@ -548,73 +664,101 @@ async fn test_stateful_and_stateless_call_trace() {
     let next_contract_address = sender.create(nonce + 1);
 
     let data = hex::decode(OWNER_DEMO_BYTECODE).unwrap();
-    
-    let tx0 = SimulationTx {    
+
+    let tx0 = SimulationTx {
         caller: sender,
         transact_to: TxKind::Create,
         value: U256::ZERO,
         data: data.clone().into(),
     };
-    let tx1 = SimulationTx {    
+    let tx1 = SimulationTx {
         caller: sender,
         transact_to: TxKind::Create,
         value: U256::ZERO,
         data: data.into(),
     };
 
-    let results = evm.trace_transactions(SimulationBatch {
-        is_stateful: false,
-        transactions: vec![tx0.clone(), tx1.clone()],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: false,
+            transactions: vec![tx0.clone(), tx1.clone()],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
 
     assert_eq!(results.len(), 2, "Should have results for two transactions");
-    assert!(results[0].0.is_success(), "Contract creation should succeed");
+    assert!(
+        results[0].0.is_success(),
+        "Contract creation should succeed"
+    );
     assert!(results[1].0.is_success(), "setOwner should succeed");
     let deploy_call_tx0 = results[0].1.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx0.from, sender, "Creator should match");
-    assert_eq!(deploy_call_tx0.to, expected_contract_address, "Contract address should match");
+    assert_eq!(
+        deploy_call_tx0.to, expected_contract_address,
+        "Contract address should match"
+    );
 
     let deploy_call_tx1 = results[1].1.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx1.from, sender, "Creator should match");
-    assert_eq!(deploy_call_tx1.to, expected_contract_address, "Contract address should match");
+    assert_eq!(
+        deploy_call_tx1.to, expected_contract_address,
+        "Contract address should match"
+    );
 
-    let results = evm.trace_transactions(SimulationBatch {
-        is_stateful: true,
-        transactions: vec![tx0.clone(), tx1.clone()],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
+    let results = evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: true,
+            transactions: vec![tx0.clone(), tx1.clone()],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
 
     assert_eq!(results.len(), 2, "Should have results for two transactions");
-    assert!(results[0].0.is_success(), "Contract creation should succeed");
+    assert!(
+        results[0].0.is_success(),
+        "Contract creation should succeed"
+    );
     assert!(results[1].0.is_success(), "setOwner should succeed");
     let deploy_call_tx0 = results[0].1.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx0.from, sender, "Creator should match");
-    assert_eq!(deploy_call_tx0.to, expected_contract_address, "Contract address should match");
+    assert_eq!(
+        deploy_call_tx0.to, expected_contract_address,
+        "Contract address should match"
+    );
 
     let deploy_call_tx1 = results[1].1.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx1.from, sender, "Creator should match");
-    assert_eq!(deploy_call_tx1.to, next_contract_address, "Contract address should match");
+    assert_eq!(
+        deploy_call_tx1.to, next_contract_address,
+        "Contract address should match"
+    );
 }
-
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_wth_ws() -> anyhow::Result<()> {
     let inspector = TxInspector::new();
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
-
-    
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector).await?;
 
     // check initial state
     let cafe_balance_before = evm.db().basic(CAFE_ADDRESS).unwrap().unwrap().balance;
     let dead_balance_before = evm.db().basic(DEAD_ADDRESS).unwrap().unwrap().balance;
-    assert_eq!(cafe_balance_before, U256::ZERO, "CAFE initial balance should be 0");
-    assert_eq!(dead_balance_before, U256::ZERO, "DEAD initial balance should be 0");
+    assert_eq!(
+        cafe_balance_before,
+        U256::ZERO,
+        "CAFE initial balance should be 0"
+    );
+    assert_eq!(
+        dead_balance_before,
+        U256::ZERO,
+        "DEAD initial balance should be 0"
+    );
 
     // define transfer amounts
     let transfer1_amount = U256::from(100000000000000000u64); // 0.1 ETH
-    let transfer2_amount = U256::from(60000000000000000u64);  // 0.06 ETH
+    let transfer2_amount = U256::from(60000000000000000u64); // 0.06 ETH
 
     let txs = SimulationBatch {
         is_stateful: true,
@@ -634,8 +778,16 @@ async fn test_wth_ws() -> anyhow::Result<()> {
         ],
     };
 
-    let results = evm.trace_transactions(txs).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>();
-    assert_eq!(results.len(), 2, "Should have results for both transactions");
+    let results = evm
+        .trace_transactions(txs)
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        results.len(),
+        2,
+        "Should have results for both transactions"
+    );
 
     // verify first tx
     let result0 = &results[0];
@@ -645,7 +797,7 @@ async fn test_wth_ws() -> anyhow::Result<()> {
     assert_eq!(transfer1.to, Some(CAFE_ADDRESS));
     assert_eq!(transfer1.value, transfer1_amount);
     assert!(transfer1.is_native_token());
-    
+
     // verify second transfer
     let result1 = &results[1];
     assert!(result1.0.is_success(), "Second tx should succeed");
@@ -658,12 +810,17 @@ async fn test_wth_ws() -> anyhow::Result<()> {
     // verify final state
     let cafe_balance_after = evm.db().basic(CAFE_ADDRESS).unwrap().unwrap().balance;
     let dead_balance_after = evm.db().basic(DEAD_ADDRESS).unwrap().unwrap().balance;
-    
+
     // calculate expected balance
     let expected_cafe_balance = transfer1_amount - transfer2_amount;
-    assert_eq!(cafe_balance_after, expected_cafe_balance, "CAFE should have 0.04 ETH left");
-    assert_eq!(dead_balance_after, transfer2_amount, "DEAD should have received 0.06 ETH");
+    assert_eq!(
+        cafe_balance_after, expected_cafe_balance,
+        "CAFE should have 0.04 ETH left"
+    );
+    assert_eq!(
+        dead_balance_after, transfer2_amount,
+        "DEAD should have received 0.06 ETH"
+    );
 
     Ok(())
-
 }

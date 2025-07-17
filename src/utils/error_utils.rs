@@ -48,7 +48,7 @@ pub fn parse_custom_error(output: &[u8]) -> Option<String> {
             } else {
                 None
             }
-        },
+        }
         // Panic(uint256) - 0x4e487b71
         [0x4e, 0x48, 0x7b, 0x71] => {
             if let Ok(DynSolValue::Uint(code, _)) = DynSolType::Uint(256).abi_decode(&output[4..]) {
@@ -62,11 +62,11 @@ pub fn parse_custom_error(output: &[u8]) -> Option<String> {
                     0x32 => "Panic: Invalid storage access".to_string(),
                     0x41 => "Panic: Zero initialization".to_string(),
                     0x51 => "Panic: Invalid calldata access".to_string(),
-                    code => format!("Panic: Unknown error code (0x{:x})", code),
+                    code => format!("Panic: Unknown error code (0x{code:x})"),
                 });
             }
             None
-        },
+        }
         _ => None,
     }
 }
@@ -83,8 +83,9 @@ mod tests {
             "08c379a0\
              0000000000000000000000000000000000000000000000000000000000000020\
              0000000000000000000000000000000000000000000000000000000000000014\
-             496e73756666696369656e742062616c616e636500000000000000000000000000" 
-        ).unwrap();
+             496e73756666696369656e742062616c616e636500000000000000000000000000",
+        )
+        .unwrap();
 
         let result = parse_custom_error(&error_bytes);
         assert_eq!(result, Some("Insufficient balance".to_string()));
@@ -114,12 +115,10 @@ mod tests {
             // Encode Panic(uint256)
             let panic_bytes = [
                 // Selector for Panic(uint256)
-                0x4e, 0x48, 0x7b, 0x71,
-                // Encoded uint256 value (32 bytes, left-padded)
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, code as u8,
+                0x4e, 0x48, 0x7b, 0x71, // Encoded uint256 value (32 bytes, left-padded)
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, code as u8,
             ];
 
             let result = parse_custom_error(&panic_bytes);
@@ -140,8 +139,8 @@ mod tests {
 
         // Test invalid panic code encoding
         let invalid_panic = [
-            0x4e, 0x48, 0x7b, 0x71,  // Panic selector
-            0x00  // Invalid uint256 encoding
+            0x4e, 0x48, 0x7b, 0x71, // Panic selector
+            0x00, // Invalid uint256 encoding
         ];
         assert_eq!(parse_custom_error(&invalid_panic), None);
     }

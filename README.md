@@ -1,4 +1,4 @@
-# REVM Transaction Simulator and Analyzer v4.0.0
+# REVM Transaction Simulator and Analyzer v4.0
 
 A high-performance, **multi-threaded** Rust library for EVM transaction simulation and analysis, built on [REVM](https://github.com/bluealloy/revm).
 
@@ -17,13 +17,14 @@ Perfect for:
 
 ---
 
-## 🚀 What's New in v4.0.0
+## 🚀 What's New in v4.0
 
 - **Unified EVM Construction with EvmBuilder**: Use `EvmBuilder` for full control (custom block height, inspector, etc.). For convenience, use `create_evm` and `create_evm_with_tracer` for quick EVM creation at the latest block.
 - **Block Height Management**: Specify block height via builder pattern, or update after creation with `set_db_block` (which also resets the database cache to ensure state consistency).
 - **Backend Selection**: Default backend is AlloyDB. Enable the `foundry-fork` feature for high-performance, thread-safe simulation with Foundry-fork-db (see `examples/concurrent_shared_backend.rs`).
 - **Simplified API**: All utility functions no longer require a `block_env` parameter; block context is managed at EVM creation.
 - **Breaking Changes**: EVM construction and block management APIs have changed. Please update your code to use the new builder pattern or context management methods.
+- **NFT Transfer Support**: Unified parsing and tracing of ERC20, ERC721, and ERC1155 token transfers. The `TokenTransfer` struct now includes `token_type` and `id` fields to support NFTs.
 
 ---
 
@@ -82,6 +83,7 @@ Perfect for:
 - **EVM-Compatible Chain Support**: Works with any EVM-compatible blockchain, not just Ethereum mainnet.
 - **Rich Utility Functions**: Includes tools for batch querying token balances, simulating Multicall deployment and batch execution, and more.
 - **Flexible Connection**: Supports both HTTP and WebSocket (ws/wss) endpoints for EVM construction.
+- **NFT (ERC721 & ERC1155) Transfer Analysis**: Automatically detects and parses NFT transfers, including tokenId extraction and type distinction.
 
 ### TxInspector Highlights
 
@@ -98,7 +100,7 @@ Perfect for:
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-revm-trace = "4.0.0"
+revm-trace = "4.0.1"
 ```
 
 ### TLS Backend Selection
@@ -107,10 +109,10 @@ revm-trace = "4.0.0"
 
 ```toml
 # Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
-revm-trace = "4.0.0"
+revm-trace = "4.0.1"
 
 # Option 2: Pure Rust TLS with rustls for system-dependency-free builds
-revm-trace = { version = "4.0.0", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "4.0.1", default-features = false, features = ["rustls-tls"] }
 ```
 
 ---
@@ -228,5 +230,5 @@ Built with ❤️ using:
 
 ---
 
-**REVM-Trace v4.0.0** - *Multi-threaded EVM simulation with comprehensive analysis*
+**REVM-Trace v4.0** - *Multi-threaded EVM simulation with comprehensive analysis*
 

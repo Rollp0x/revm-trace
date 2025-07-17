@@ -1,10 +1,8 @@
+use alloy::primitives::{address, TxKind, U256};
 use revm_trace::{
-    TransactionTrace,
-    types::{SimulationTx, SimulationBatch},
-    TxInspector,
-    EvmBuilder,
+    types::{SimulationBatch, SimulationTx},
+    EvmBuilder, TransactionTrace, TxInspector,
 };
-use alloy::primitives::{address, U256, TxKind};
 
 const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
@@ -18,8 +16,7 @@ async fn test_basic_usage() -> anyhow::Result<()> {
         .with_tracer(inspector)
         .build()
         .await?;
-       
-    
+
     let sender = address!("C255fC198eEdAC7AF8aF0f6e0ca781794B094A61");
     // Create simulation transaction
     let tx = SimulationTx {
@@ -36,7 +33,8 @@ async fn test_basic_usage() -> anyhow::Result<()> {
     };
 
     // Execute transaction batch
-    let results = evm.trace_transactions(batch)
+    let results = evm
+        .trace_transactions(batch)
         .into_iter()
         .map(|v| v.unwrap())
         .collect::<Vec<_>>();
@@ -49,7 +47,9 @@ async fn test_basic_usage() -> anyhow::Result<()> {
                 for transfer in inspector_output.asset_transfers {
                     println!(
                         "Transfer: {} from {} to {}",
-                        transfer.value, transfer.from, transfer.to.unwrap()
+                        transfer.value,
+                        transfer.from,
+                        transfer.to.unwrap()
                     );
                 }
             }

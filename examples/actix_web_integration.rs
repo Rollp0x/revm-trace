@@ -71,22 +71,21 @@
 //!   -d '{"rpc_url":"https://eth.llamarpc.com","from":"0xC255fC198eEdAC7AF8aF0f6e0ca781794B094A61","to":"0xd878229c9c3575F224784DE610911B5607a3ad15","value":"120000000000000000","with_trace":true}'
 //! ```
 
-use actix_web::{web, App, HttpServer, HttpResponse, Result, middleware::Logger};
+use actix_web::{middleware::Logger, web, App, HttpResponse, HttpServer, Result};
+use alloy::primitives::{Address, TxKind, U256};
 use revm_trace::{
-    TxInspector,
-    types::{SimulationTx, SimulationBatch},
     traits::TransactionTrace,
+    types::{SimulationBatch, SimulationTx},
+    TxInspector,
 };
 use serde::{Deserialize, Serialize};
-use alloy::primitives::{U256, TxKind, Address};
 use std::str::FromStr;
 
 #[cfg(not(feature = "foundry-fork"))]
-use revm_trace::{create_evm_with_tracer, create_evm};
-
+use revm_trace::{create_evm, create_evm_with_tracer};
 
 #[cfg(feature = "foundry-fork")]
-use revm_trace::{create_shared_evm_with_tracer, create_shared_evm};
+use revm_trace::{create_shared_evm, create_shared_evm_with_tracer};
 
 /// Request structure for transaction simulation
 #[derive(Deserialize)]
@@ -119,19 +118,20 @@ struct SimulateResponse {
 }
 
 /// Simulate transaction using tokio::task::spawn_blocking approach
-/// 
+///
 /// This approach creates a new tokio runtime inside a blocking task to handle
 /// the EVM operations that may block on network I/O.
 async fn simulate_transaction(req: web::Json<SimulateRequest>) -> Result<HttpResponse> {
     let request = req.into_inner();
-    
+
     // Use tokio::task::spawn_blocking to handle potentially blocking operations
     let result = tokio::task::spawn_blocking(move || {
         // Create a new runtime to handle EVM creation and execution
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            simulate_tx_internal(request).await
-        })
-    }).await;
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { simulate_tx_internal(request).await })
+    })
+    .await;
 
     match result {
         Ok(response) => Ok(HttpResponse::Ok().json(response)),
@@ -145,20 +145,19 @@ async fn simulate_transaction(req: web::Json<SimulateRequest>) -> Result<HttpRes
 }
 
 /// Simulate transaction using web::block approach (recommended for actix-web)
-/// 
+///
 /// This approach uses actix-web's built-in blocking thread pool, which is
 /// more efficient and integrates better with the actix-web ecosystem.
 async fn simulate_transaction_web_block(req: web::Json<SimulateRequest>) -> Result<HttpResponse> {
     let request = req.into_inner();
-    
+
     // Use actix-web's web::block for better integration
     let result = web::block(move || {
         // Create a new runtime to handle EVM creation and execution
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            simulate_tx_internal(request).await
-        })
-    }).await;
+        rt.block_on(async { simulate_tx_internal(request).await })
+    })
+    .await;
 
     match result {
         Ok(response) => Ok(HttpResponse::Ok().json(response)),
@@ -172,41 +171,47 @@ async fn simulate_transaction_web_block(req: web::Json<SimulateRequest>) -> Resu
 }
 
 /// Internal function to handle transaction simulation logic
-/// 
+///
 /// This function contains the core simulation logic that is shared between
 /// different endpoint implementations.
 async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
     // Parse addresses
     let from_addr = match Address::from_str(&request.from) {
         Ok(addr) => addr,
-        Err(e) => return SimulateResponse {
-            success: false,
-            gas_used: None,
-            error: Some(format!("Invalid from address: {}", e)),
-            traces: None,
-        },
+        Err(e) => {
+            return SimulateResponse {
+                success: false,
+                gas_used: None,
+                error: Some(format!("Invalid from address: {}", e)),
+                traces: None,
+            }
+        }
     };
 
     let to_addr = match Address::from_str(&request.to) {
         Ok(addr) => addr,
-        Err(e) => return SimulateResponse {
-            success: false,
-            gas_used: None,
-            error: Some(format!("Invalid to address: {}", e)),
-            traces: None,
-        },
+        Err(e) => {
+            return SimulateResponse {
+                success: false,
+                gas_used: None,
+                error: Some(format!("Invalid to address: {}", e)),
+                traces: None,
+            }
+        }
     };
 
     // Parse transaction value
     let value = if let Some(val_str) = request.value {
         match U256::from_str(&val_str) {
             Ok(val) => val,
-            Err(e) => return SimulateResponse {
-                success: false,
-                gas_used: None,
-                error: Some(format!("Invalid value: {}", e)),
-                traces: None,
-            },
+            Err(e) => {
+                return SimulateResponse {
+                    success: false,
+                    gas_used: None,
+                    error: Some(format!("Invalid value: {}", e)),
+                    traces: None,
+                }
+            }
         }
     } else {
         U256::ZERO
@@ -216,12 +221,14 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
     let data = if let Some(data_str) = request.data {
         match hex::decode(data_str.strip_prefix("0x").unwrap_or(&data_str)) {
             Ok(bytes) => bytes.into(),
-            Err(e) => return SimulateResponse {
-                success: false,
-                gas_used: None,
-                error: Some(format!("Invalid data: {}", e)),
-                traces: None,
-            },
+            Err(e) => {
+                return SimulateResponse {
+                    success: false,
+                    gas_used: None,
+                    error: Some(format!("Invalid data: {}", e)),
+                    traces: None,
+                }
+            }
         }
     } else {
         vec![].into()
@@ -247,23 +254,22 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
         let create_evm_result = create_evm_with_tracer(&request.rpc_url, TxInspector::new()).await;
 
         #[cfg(feature = "foundry-fork")]
-        let create_evm_result = create_shared_evm_with_tracer(&request.rpc_url,TxInspector::new()).await;
+        let create_evm_result =
+            create_shared_evm_with_tracer(&request.rpc_url, TxInspector::new()).await;
 
         match create_evm_result {
             Ok(mut evm) => {
                 let results = evm.trace_transactions(batch);
                 match results.into_iter().next() {
-                    Some(Ok((execution_result, trace_output))) => {
-                        SimulateResponse {
-                            success: true,
-                            gas_used: Some(execution_result.gas_used()),
-                            error: None,
-                            traces: Some(serde_json::json!({
-                                "asset_transfers": trace_output.asset_transfers.len(),
-                                "call_traces": trace_output.call_trace,
-                            })),
-                        }
-                    }
+                    Some(Ok((execution_result, trace_output))) => SimulateResponse {
+                        success: true,
+                        gas_used: Some(execution_result.gas_used()),
+                        error: None,
+                        traces: Some(serde_json::json!({
+                            "asset_transfers": trace_output.asset_transfers.len(),
+                            "call_traces": trace_output.call_trace,
+                        })),
+                    },
                     Some(Err(e)) => SimulateResponse {
                         success: false,
                         gas_used: None,
@@ -292,18 +298,16 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
         #[cfg(feature = "foundry-fork")]
         let create_evm_result = create_shared_evm(&request.rpc_url).await;
 
-        match create_evm_result{
+        match create_evm_result {
             Ok(mut evm) => {
                 let results = evm.execute_batch(batch);
                 match results.into_iter().next() {
-                    Some(Ok(execution_result)) => {
-                        SimulateResponse {
-                            success: true,
-                            gas_used: Some(execution_result.gas_used()),
-                            error: None,
-                            traces: None,
-                        }
-                    }
+                    Some(Ok(execution_result)) => SimulateResponse {
+                        success: true,
+                        gas_used: Some(execution_result.gas_used()),
+                        error: None,
+                        traces: None,
+                    },
                     Some(Err(e)) => SimulateResponse {
                         success: false,
                         gas_used: None,
@@ -329,7 +333,7 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
 }
 
 /// Health check endpoint
-/// 
+///
 /// Returns the service status and version information.
 /// This endpoint can be used for monitoring and load balancer health checks.
 async fn health_check() -> Result<HttpResponse> {
@@ -351,7 +355,7 @@ async fn main() -> std::io::Result<()> {
 
     #[cfg(not(feature = "foundry-fork"))]
     println!("Using AlloyDB backend for EVM simulation");
-    
+
     #[cfg(feature = "foundry-fork")]
     println!("Using Foundry fork backend for EVM simulation");
 
@@ -360,7 +364,10 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .route("/health", web::get().to(health_check))
             .route("/simulate", web::post().to(simulate_transaction))
-            .route("/simulate_web_block", web::post().to(simulate_transaction_web_block))
+            .route(
+                "/simulate_web_block",
+                web::post().to(simulate_transaction_web_block),
+            )
     })
     .bind("127.0.0.1:8080")?
     .run()

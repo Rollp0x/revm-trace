@@ -9,26 +9,23 @@
 //! Use this when you need to run many EVM simulations in parallel, such as for MEV, batch analysis,
 //! or large-scale blockchain data processing.
 
-use std::sync::Arc;
 pub use foundry_fork_db::SharedBackend;
 use foundry_fork_db::{cache::BlockchainDbMeta, BlockchainDb};
+use std::sync::Arc;
 
-use crate::{
-    errors::EvmError,
-    TraceEvm, TraceInspector,
-};
+use super::{get_block, get_provider, EvmBuilder};
+use crate::{errors::EvmError, TraceEvm, TraceInspector};
 use alloy::{
     eips::{BlockId, BlockNumberOrTag},
     network::AnyNetwork,
     providers::Provider,
 };
 use revm::{
-    context::{Context, BlockEnv},
+    context::{BlockEnv, Context},
     database::CacheDB,
     handler::{MainBuilder, MainContext, MainnetContext},
-    inspector::NoOpInspector
+    inspector::NoOpInspector,
 };
-use super::{get_provider, get_block, EvmBuilder};
 
 /// EVM instance using SharedBackend with no-op inspector
 ///
@@ -40,7 +37,6 @@ pub type SharedEvm = TraceEvm<CacheDB<SharedBackend>, NoOpInspector>;
 ///
 /// Combines high-performance caching with custom tracing capabilities.
 pub type InspectorSharedEvm<INSP> = TraceEvm<CacheDB<SharedBackend>, INSP>;
-
 
 /// SharedBackend-specific constructor implementations
 ///
@@ -74,7 +70,6 @@ impl EvmBuilder<SharedBackend, NoOpInspector> {
         }
     }
 }
-
 
 /// SharedBackend-specific build implementation
 ///
@@ -177,8 +172,6 @@ impl<INSP> EvmBuilder<SharedBackend, INSP> {
         Ok(TraceEvm::new(evm))
     }
 }
-
-
 
 /// Creates an EVM instance using SharedBackend with no tracing
 ///

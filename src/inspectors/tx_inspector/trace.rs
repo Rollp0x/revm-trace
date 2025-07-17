@@ -1,34 +1,29 @@
 //! Call trace handling and error tracking
-//! 
+//!
 //! This module implements the core tracing functionality:
 //! - Call hierarchy tracking
 //! - Error propagation and location
 //! - Execution result processing
 //! - Status management
-//! 
+//!
 //! The implementation uses a tree structure to maintain the complete
 //! call hierarchy, with special handling for error cases to identify
 //! the exact point of failure in complex transactions.
 
 use crate::inspectors::tx_inspector::TxInspector;
-use revm::interpreter::{
-    InstructionResult,
-    SuccessOrHalt,
-    
-};
 use revm::context_interface::result::HaltReason;
+use revm::interpreter::{InstructionResult, SuccessOrHalt};
 
-use crate::utils::error_utils::parse_custom_error;
 use crate::types::*;
-use alloy::primitives::{Bytes, U256, hex};
+use crate::utils::error_utils::parse_custom_error;
+use alloy::primitives::{hex, Bytes, U256};
 
 impl TxInspector {
-
     /// Locates the trace address of the first error in the call tree
-    /// 
+    ///
     /// Returns the position in the call tree where the first error occurred,
     /// represented as a sequence of indices into the call tree.
-    /// 
+    ///
     /// # Returns
     /// * `Some(vec![0,1,2])` - Error occurred in the third child of the second child of the first call
     /// * `None` - No errors found
@@ -38,15 +33,15 @@ impl TxInspector {
     }
 
     /// Performs depth-first search to find the source of an error
-    /// 
+    ///
     /// Traverses the call tree to find the deepest call that meets all criteria:
     /// - Has a failed execution status
     /// - Is marked as the origin of the error
     /// - Has no failed child calls
-    /// 
+    ///
     /// This helps identify the exact point where an error originated,
     /// rather than where it was propagated to.
-    /// 
+    ///
     /// # Returns
     /// * `Some(&CallTrace)` - Reference to the trace where the error originated
     /// * `None` - No errors found in the call tree
@@ -80,18 +75,18 @@ impl TxInspector {
     }
 
     /// Updates call trace with execution results and maintains call hierarchy
-    /// 
+    ///
     /// This method:
     /// 1. Updates the current trace with execution results
     /// 2. Processes error status and messages
     /// 3. Identifies error origins
     /// 4. Maintains the call tree structure
-    /// 
+    ///
     /// # Arguments
     /// * `result` - Final execution status from the EVM
     /// * `gas_used` - Total gas consumed by the call
     /// * `output` - Return data or error message
-    /// 
+    ///
     /// # Call Tree Management
     /// - Pops the current call from the stack
     /// - Updates its execution details
@@ -112,8 +107,8 @@ impl TxInspector {
                     } else {
                         CallStatus::Revert(format!("0x{}", hex::encode(output)))
                     }
-                },
-                SuccessOrHalt::Halt(reason) => CallStatus::Halt(format!("{:?}", reason)),
+                }
+                SuccessOrHalt::Halt(reason) => CallStatus::Halt(format!("{reason:?}")),
                 SuccessOrHalt::FatalExternalError => CallStatus::FatalError,
                 // Internal state is impossible here as call_end is only called after execution completion
                 SuccessOrHalt::Internal(_) => CallStatus::Success,
@@ -122,8 +117,11 @@ impl TxInspector {
             trace.status = status;
 
             // Mark as error origin if this call failed but all subtraces succeeded
-            trace.error_origin = !trace.status.is_success() && 
-                trace.subtraces.iter().all(|subtrace| subtrace.status.is_success());
+            trace.error_origin = !trace.status.is_success()
+                && trace
+                    .subtraces
+                    .iter()
+                    .all(|subtrace| subtrace.status.is_success());
 
             // Move trace to parent's subtraces if not root
             if let Some(&parent_index) = self.call_stack.last() {

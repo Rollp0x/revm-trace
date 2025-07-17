@@ -99,9 +99,8 @@ use revm::{
     context::Context,
     database::{AlloyDB, CacheDB, DatabaseRef},
     handler::{MainBuilder, MainContext, MainnetContext},
-    inspector::NoOpInspector
+    inspector::NoOpInspector,
 };
-
 
 // ========================= Type Aliases =========================
 
@@ -116,8 +115,6 @@ pub type DefaultEvm = TraceEvm<CacheDB<AllDBType>, NoOpInspector>;
 /// Generic over inspector type `INSP`, allowing any inspector that implements
 /// the required traits for AlloyDB backend.
 pub type InspectorEvm<INSP> = TraceEvm<CacheDB<AllDBType>, INSP>;
-
-
 
 // ========================= Provider Creation =========================
 
@@ -467,7 +464,6 @@ impl<INSP> EvmBuilder<AllDBType, INSP> {
     }
 }
 
-
 // ========================= Convenience Functions =========================
 
 /// Creates a basic EVM instance using AlloyDB backend with no tracing
@@ -548,7 +544,6 @@ where
         EvmBuilder::<AllDBType, NoOpInspector>::new_alloy(rpc_url).with_tracer(tracer);
     evm_builder.build().await
 }
-
 
 #[cfg(feature = "foundry-fork")]
 pub mod fork_db;

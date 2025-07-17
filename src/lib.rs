@@ -19,6 +19,7 @@
 //! - **EVM-Compatible Chain Support**: Works with any EVM-compatible blockchain, not just Ethereum mainnet.
 //! - **Rich Utility Functions**: Includes tools for batch querying token balances, simulating Multicall deployment and batch execution, and more.
 //! - **Flexible Connection**: Supports both HTTP and WebSocket (ws/wss) endpoints for EVM construction.
+//! - **NFT (ERC721 & ERC1155) Transfer Analysis**: Automatically detects and parses NFT transfers, including tokenId extraction and type distinction.
 //!
 //! ### TxInspector Highlights
 //!
@@ -41,34 +42,35 @@
 //!
 //! ```toml
 //! [dependencies]
-//! revm-trace = "4.0.0"
+//! revm-trace = "4.0.1"
 //!
 //! # TLS Backend Selection (choose one):
 //! # Default: native-tls (OpenSSL) for maximum compatibility
 //! # Alternative: Pure Rust TLS for system-dependency-free builds
-//! # revm-trace = { version = "4.0.0", default-features = false, features = ["rustls-tls"] }
+//! # revm-trace = { version = "4.0.1", default-features = false, features = ["rustls-tls"] }
 //! ```
 
-pub mod types;
-pub mod evm;
-pub mod utils;
-pub mod traits;
-pub mod inspectors;
 pub mod errors;
+pub mod evm;
+pub mod inspectors;
+pub mod traits;
+pub mod types;
+pub mod utils;
 mod wrap_db;
 
 // Re-export core types for easier access
+pub use evm::{
+    builder::{create_evm, create_evm_with_tracer, EvmBuilder},
+    TraceEvm,
+};
 pub use inspectors::tx_inspector::TxInspector;
-pub use evm::{TraceEvm, builder::{
-    create_evm, create_evm_with_tracer,EvmBuilder
-}};
-pub use types::{BlockEnv, SimulationTx, SimulationBatch};
 pub use traits::*;
+pub use types::{BlockEnv, SimulationBatch, SimulationTx};
 pub use wrap_db::MyWrapDatabaseAsync;
 
 // Re-export core libraries for convenience
-pub use revm;
 pub use alloy;
+pub use revm;
 
 #[cfg(feature = "foundry-fork")]
 pub use foundry_fork_db;

@@ -1,18 +1,16 @@
 //! Proxy Implementation Contract Lookup Example
-//! 
+//!
 //! This example demonstrates how to:
 //! - Query the implementation address of a proxy contract
 //! - Use revm without transaction simulation
 //! - Work with proxy contracts like USDC
-//! 
+//!
 //! Note: This example doesn't use transaction simulation or inspectors,
 //! it only reads state from the blockchain.
 
-use revm_trace::{
-    utils::proxy_utils::get_implementation,
-};
-use anyhow::Result;
 use alloy::primitives::address;
+use anyhow::Result;
+use revm_trace::utils::proxy_utils::get_implementation;
 
 #[cfg(not(feature = "foundry-fork"))]
 use revm_trace::create_evm;
@@ -28,7 +26,7 @@ async fn main() -> Result<()> {
 
     #[cfg(not(feature = "foundry-fork"))]
     println!("Using AlloyDB backend for EVM simulation");
-    
+
     #[cfg(feature = "foundry-fork")]
     println!("Using Foundry fork backend for EVM simulation");
 

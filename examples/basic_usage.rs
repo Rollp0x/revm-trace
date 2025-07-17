@@ -1,5 +1,5 @@
 //! ERC20 Token Transfer Simulation Example
-//! 
+//!
 //! This example demonstrates how to:
 //! - Set up a simulation environment
 //! - Encode ERC20 transfer calls
@@ -7,17 +7,16 @@
 //! - Track and verify transfer results
 //! - Display transfer information with proper token details
 
-use revm_trace::{
-    TransactionTrace,
-    utils::erc20_utils::get_token_infos,
-    SimulationBatch, SimulationTx, TxInspector
+use alloy::{
+    primitives::{address, utils::format_units, Address, TxKind, U256},
+    sol,
+    sol_types::SolCall,
 };
 use anyhow::Result;
-use alloy::{
-    primitives::{address, utils::format_units, Address, U256,TxKind}, 
-    sol, sol_types::SolCall
+use revm_trace::{
+    utils::erc20_utils::get_token_infos, SimulationBatch, SimulationTx, TransactionTrace,
+    TxInspector,
 };
-
 
 #[cfg(not(feature = "foundry-fork"))]
 use revm_trace::create_evm_with_tracer;
@@ -48,26 +47,19 @@ const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     #[cfg(not(feature = "foundry-fork"))]
     println!("Using AlloyDB backend for EVM simulation");
-    
+
     #[cfg(feature = "foundry-fork")]
     println!("Using Foundry fork backend for EVM simulation");
-    
+
     let inspector = TxInspector::new();
 
     #[cfg(not(feature = "foundry-fork"))]
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
+    let mut evm = create_evm_with_tracer(ETH_RPC_URL, inspector).await?;
 
     #[cfg(feature = "foundry-fork")]
-    let mut evm = create_shared_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
+    let mut evm = create_shared_evm_with_tracer(ETH_RPC_URL, inspector).await?;
     // USDC proxy contract address
     let usdc = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
 
@@ -83,22 +75,31 @@ async fn main() -> Result<()> {
         data: transfer_data.into(),
     };
 
-    let result = &evm.trace_transactions(SimulationBatch {
-        is_stateful: false,
-        transactions: vec![tx],
-    }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0];
+    let result = &evm
+        .trace_transactions(SimulationBatch {
+            is_stateful: false,
+            transactions: vec![tx],
+        })
+        .into_iter()
+        .map(|v| v.unwrap())
+        .collect::<Vec<_>>()[0];
     let output = result.0.output().unwrap();
-    assert!(output.len() == 32 && output[31] == 1,"❌ Expected transfer to succeed");
+    assert!(
+        output.len() == 32 && output[31] == 1,
+        "❌ Expected transfer to succeed"
+    );
     // Print results
     for transfer in &result.1.asset_transfers {
         let token_info = &get_token_infos(&mut evm, &[transfer.token]).unwrap()[0];
 
         println!(
             "Transfer: {} {} -> {}: {}",
-            token_info.symbol, transfer.from, transfer.to.unwrap(), format_units(transfer.value, token_info.decimals).unwrap()
+            token_info.symbol,
+            transfer.from,
+            transfer.to.unwrap(),
+            format_units(transfer.value, token_info.decimals).unwrap()
         );
     }
 
     Ok(())
 }
-

@@ -22,17 +22,15 @@
 //! This extension is essential for scenarios where you need to update the underlying database state
 //! (e.g., switching block context) without reconstructing the entire wrapper.
 
-use revm:: {
-    primitives::{Address, StorageKey, StorageValue, B256},
-    state::{AccountInfo,Bytecode},
+use revm::{
     database::{Database, DatabaseRef},
-    database_interface::async_db::{DatabaseAsync,DatabaseAsyncRef}
+    database_interface::async_db::{DatabaseAsync, DatabaseAsyncRef},
+    primitives::{Address, StorageKey, StorageValue, B256},
+    state::{AccountInfo, Bytecode},
 };
 
 use core::future::Future;
 use tokio::runtime::{Handle, Runtime};
-
-
 
 /// Wraps a [DatabaseAsync] or [DatabaseAsyncRef] to provide a [`Database`] implementation.
 #[derive(Debug)]
@@ -40,7 +38,6 @@ pub struct MyWrapDatabaseAsync<T> {
     db: T,
     rt: HandleOrRuntime,
 }
-
 
 impl<T> MyWrapDatabaseAsync<T> {
     /// Wraps a [DatabaseAsync] or [DatabaseAsyncRef] instance.
@@ -58,11 +55,11 @@ impl<T> MyWrapDatabaseAsync<T> {
     }
 
     /// Gets a mutable reference to the inner database
-    /// 
+    ///
     /// This allows direct access to the wrapped database instance for operations
     /// that are not covered by the standard Database/DatabaseRef interfaces,
     /// such as configuration changes or state updates.
-    /// 
+    ///
     /// # Example
     /// ```rust,ignore
     /// let mut wrapped_db = MyWrapDatabaseAsync::new(alloy_db)?;
@@ -93,11 +90,7 @@ impl<T> MyWrapDatabaseAsync<T> {
         let rt = HandleOrRuntime::Handle(handle);
         Self { db, rt }
     }
-
-
-
 }
-
 
 impl<T: DatabaseAsync> Database for MyWrapDatabaseAsync<T> {
     type Error = T::Error;
@@ -154,8 +147,6 @@ impl<T: DatabaseAsyncRef> DatabaseRef for MyWrapDatabaseAsync<T> {
         self.rt.block_on(self.db.block_hash_async_ref(number))
     }
 }
-
-
 
 // Hold a tokio runtime handle or full runtime
 #[derive(Debug)]

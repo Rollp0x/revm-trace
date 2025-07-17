@@ -3,23 +3,22 @@
 //! Provides functions to interact with ERC20 tokens including balance queries,
 //! token metadata retrieval, and transfer event parsing.
 
-use revm::{
-    context::TxEnv,
-    database::Database,
-    ExecuteEvm,
-    context_interface::result::{ExecutionResult, Output},
+use crate::{
+    errors::{EvmError, TokenError},
+    evm::TraceEvm,
+    types::{TokenInfo, ERC20_TRANSFER_EVENT_SIGNATURE},
+};
+use alloy::{
+    primitives::{Address, Bytes, FixedBytes, TxKind, U256},
+    sol,
+    sol_types::SolCall,
 };
 use anyhow::Result;
-use crate::{
-    evm::TraceEvm,
-    errors::{TokenError,EvmError},
-    types::TokenInfo
-};
-use once_cell::sync::Lazy;
-use alloy::{
-    sol,
-    sol_types::SolCall, 
-    primitives::{Address,Bytes, U256,TxKind,FixedBytes,keccak256},
+use revm::{
+    context::TxEnv,
+    context_interface::result::{ExecutionResult, Output},
+    database::Database,
+    ExecuteEvm,
 };
 
 // ERC20 interface for common token functions
@@ -38,11 +37,6 @@ sol! {
     function totalSupply() public returns (uint256);
 }
 
-/// ERC20 Transfer event signature
-/// keccak256("Transfer(address,address,uint256)")
-static TRANSFER_EVENT_SIGNATURE: Lazy<FixedBytes<32>> =
-    Lazy::new(|| keccak256(b"Transfer(address,address,uint256)"));
-
 /// Query ERC20 token balance for a specific address
 ///
 /// Executes the `balanceOf(address)` function on the specified token contract.
@@ -55,25 +49,27 @@ static TRANSFER_EVENT_SIGNATURE: Lazy<FixedBytes<32>> =
 /// # Returns
 /// - `Ok(U256)`: Token balance in the token's smallest unit
 /// - `Err(...)`: If the contract call fails or returns invalid data
-pub fn query_erc20_balance<DB,INSP>(
+pub fn query_erc20_balance<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     token_address: Address,
-    owner: Address
+    owner: Address,
 ) -> Result<U256>
-where 
-    DB: Database
-{  
-    let data:Bytes = balanceOfCall { owner: owner }.abi_encode().into();
-    
+where
+    DB: Database,
+{
+    let data: Bytes = balanceOfCall { owner }.abi_encode().into();
+
     // Use zero address as caller for read-only calls (no nonce needed)
     let tx = TxEnv::builder()
         .caller(Address::ZERO)
         .kind(TxKind::Call(token_address))
         .chain_id(Some(evm.cfg.chain_id))
         .data(data)
-        .nonce(0)  // Read-only call, nonce doesn't matter
+        .nonce(0) // Read-only call, nonce doesn't matter
         .build_fill();
-    let ref_tx = evm.transact(tx).map_err(|e| anyhow::anyhow!("Failed to query ERC20 balance: {}", e))?;
+    let ref_tx = evm
+        .transact(tx)
+        .map_err(|e| anyhow::anyhow!("Failed to query ERC20 balance: {}", e))?;
     let value = match ref_tx.result {
         ExecutionResult::Success {
             output: Output::Call(value),
@@ -85,7 +81,6 @@ where
 
     Ok(balance)
 }
-
 
 /// Internal helper to query all token information with pre-encoded call data
 ///
@@ -102,18 +97,17 @@ where
 /// # Returns
 /// - `Ok(TokenInfo)`: Complete token information
 /// - `Err(TokenError)`: If any call fails or returns invalid data
-fn query_token_info<DB,INSP>(
+fn query_token_info<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     token_address: Address,
     name_encoded: Bytes,
     symbol_encoded: Bytes,
     decimals_encoded: Bytes,
     total_supply_encoded: Bytes,
-) -> Result<TokenInfo,TokenError>
+) -> Result<TokenInfo, TokenError>
 where
-    DB: Database
+    DB: Database,
 {
-    
     let tx_name = TxEnv {
         caller: Address::ZERO,
         kind: TxKind::Call(token_address),
@@ -122,15 +116,24 @@ where
         nonce: 0,
         ..Default::default()
     };
-    let ref_tx  = evm.transact(tx_name).map_err(|e| anyhow::anyhow!("Failed to query token name: {}", e))?;
+    let ref_tx = evm
+        .transact(tx_name)
+        .map_err(|e| anyhow::anyhow!("Failed to query token name: {}", e))?;
     let name = match ref_tx.result {
-        ExecutionResult::Success { output: Output::Call(value), .. } => {
-            nameCall::abi_decode_returns(&value)
-            .map_err(|_| TokenError::NameDecode { address: token_address.to_string(), reason: "Failed to decode name".to_string() })?
-        },
-        _ => return Err(TokenError::CallReverted { address: token_address.to_string()}),
+        ExecutionResult::Success {
+            output: Output::Call(value),
+            ..
+        } => nameCall::abi_decode_returns(&value).map_err(|_| TokenError::NameDecode {
+            address: token_address.to_string(),
+            reason: "Failed to decode name".to_string(),
+        })?,
+        _ => {
+            return Err(TokenError::CallReverted {
+                address: token_address.to_string(),
+            })
+        }
     };
-    
+
     let tx_symbol = TxEnv {
         caller: Address::ZERO,
         kind: TxKind::Call(token_address),
@@ -138,28 +141,46 @@ where
         data: symbol_encoded,
         ..Default::default()
     };
-    let ref_tx = evm.transact(tx_symbol).map_err(|e| anyhow::anyhow!("Failed to query token symbol: {}", e))?;
+    let ref_tx = evm
+        .transact(tx_symbol)
+        .map_err(|e| anyhow::anyhow!("Failed to query token symbol: {}", e))?;
     let symbol = match ref_tx.result {
-        ExecutionResult::Success { output: Output::Call(value), .. } => {
-            symbolCall::abi_decode_returns(&value)
-            .map_err(|_| TokenError::SymbolDecode { address: token_address.to_string(), reason: "Failed to decode symbol".to_string() })?
-        },
-        _ => return Err(TokenError::CallReverted { address: token_address.to_string()}),
+        ExecutionResult::Success {
+            output: Output::Call(value),
+            ..
+        } => symbolCall::abi_decode_returns(&value).map_err(|_| TokenError::SymbolDecode {
+            address: token_address.to_string(),
+            reason: "Failed to decode symbol".to_string(),
+        })?,
+        _ => {
+            return Err(TokenError::CallReverted {
+                address: token_address.to_string(),
+            })
+        }
     };
-    
+
     let tx_decimals = TxEnv {
         kind: TxKind::Call(token_address),
         data: decimals_encoded,
         chain_id: Some(evm.cfg.chain_id),
         ..Default::default()
     };
-    let ref_tx = evm.transact(tx_decimals).map_err(|e| anyhow::anyhow!("Failed to query token decimals: {}", e))?;
+    let ref_tx = evm
+        .transact(tx_decimals)
+        .map_err(|e| anyhow::anyhow!("Failed to query token decimals: {}", e))?;
     let decimals = match ref_tx.result {
-        ExecutionResult::Success { output: Output::Call(value), .. } => {
-            decimalsCall::abi_decode_returns(&value)
-            .map_err(|_| TokenError::DecimalsDecode { address: token_address.to_string(), reason: "Failed to decode decimals".to_string() })?
-        },
-        _ => return Err(TokenError::CallReverted { address: token_address.to_string()}),
+        ExecutionResult::Success {
+            output: Output::Call(value),
+            ..
+        } => decimalsCall::abi_decode_returns(&value).map_err(|_| TokenError::DecimalsDecode {
+            address: token_address.to_string(),
+            reason: "Failed to decode decimals".to_string(),
+        })?,
+        _ => {
+            return Err(TokenError::CallReverted {
+                address: token_address.to_string(),
+            })
+        }
     };
     let tx_total_supply = TxEnv {
         kind: TxKind::Call(token_address),
@@ -167,16 +188,32 @@ where
         chain_id: Some(evm.cfg.chain_id),
         ..Default::default()
     };
-    let ref_tx = evm.transact(tx_total_supply).map_err(|e| anyhow::anyhow!("Failed to query token total supply: {}", e))?;
+    let ref_tx = evm
+        .transact(tx_total_supply)
+        .map_err(|e| anyhow::anyhow!("Failed to query token total supply: {}", e))?;
     let total_supply = match ref_tx.result {
-        ExecutionResult::Success { output: Output::Call(value), .. } => {
-            totalSupplyCall::abi_decode_returns(&value)
-            .map_err(|_| TokenError::TotalSupplyDecode { address: token_address.to_string(), reason: "Failed to decode total supply".to_string() })?
-        },
-        _ => return Err(TokenError::CallReverted { address: token_address.to_string()}),
+        ExecutionResult::Success {
+            output: Output::Call(value),
+            ..
+        } => totalSupplyCall::abi_decode_returns(&value).map_err(|_| {
+            TokenError::TotalSupplyDecode {
+                address: token_address.to_string(),
+                reason: "Failed to decode total supply".to_string(),
+            }
+        })?,
+        _ => {
+            return Err(TokenError::CallReverted {
+                address: token_address.to_string(),
+            })
+        }
     };
 
-    Ok(TokenInfo { name,symbol, decimals, total_supply })
+    Ok(TokenInfo {
+        name,
+        symbol,
+        decimals,
+        total_supply,
+    })
 }
 
 /// Query token information for multiple ERC20 tokens in batch
@@ -193,39 +230,47 @@ where
 pub fn get_token_infos<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     tokens: &[Address],
-) -> Result<Vec<TokenInfo>,EvmError>
-where 
-    DB: Database
-{   
-    let name_encoded: Bytes = nameCall { }.abi_encode().into();
-    let symbol_encoded: Bytes = symbolCall { }.abi_encode().into();
-    let decimals_encoded: Bytes = decimalsCall { }.abi_encode().into();
-    let total_supply_encoded: Bytes = totalSupplyCall { }.abi_encode().into();
+) -> Result<Vec<TokenInfo>, EvmError>
+where
+    DB: Database,
+{
+    let name_encoded: Bytes = nameCall {}.abi_encode().into();
+    let symbol_encoded: Bytes = symbolCall {}.abi_encode().into();
+    let decimals_encoded: Bytes = decimalsCall {}.abi_encode().into();
+    let total_supply_encoded: Bytes = totalSupplyCall {}.abi_encode().into();
     let mut token_infos = Vec::with_capacity(tokens.len());
     for token in tokens {
-        let token_info = query_token_info(evm, *token,name_encoded.clone(), symbol_encoded.clone(), decimals_encoded.clone(),total_supply_encoded.clone())?;
+        let token_info = query_token_info(
+            evm,
+            *token,
+            name_encoded.clone(),
+            symbol_encoded.clone(),
+            decimals_encoded.clone(),
+            total_supply_encoded.clone(),
+        )?;
         token_infos.push(token_info);
     }
 
     Ok(token_infos)
 }
 
-
-
 /// Parses ERC20 Transfer event data
-/// 
+///
 /// # Arguments
 /// * `topics` - Event topics containing:
 ///   - [0]: Transfer event signature
 ///   - [1]: From address (indexed)
 ///   - [2]: To address (indexed)
 /// * `data` - ABI-encoded transfer amount
-/// 
+///
 /// # Returns
 /// * `Some((from, to, amount))` if valid Transfer event
 /// * `None` if invalid format or zero amount
-pub fn parse_transfer_log(topics: &[FixedBytes<32>], data: &[u8]) -> Option<(Address, Address, U256)> {
-    if topics.len() < 3 || topics[0] != *TRANSFER_EVENT_SIGNATURE {
+pub fn parse_transfer_log(
+    topics: &[FixedBytes<32>],
+    data: &[u8],
+) -> Option<(Address, Address, U256)> {
+    if topics.len() < 3 || topics[0] != ERC20_TRANSFER_EVENT_SIGNATURE {
         return None;
     }
     let amount = U256::from_be_slice(data);

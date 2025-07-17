@@ -9,18 +9,15 @@
 //!   - OpenZeppelin Proxy
 //!   - Beacon Proxy
 
+use crate::{
+    errors::{EvmError, RuntimeError},
+    evm::TraceEvm,
+};
 use alloy::primitives::{Address, U256};
 use anyhow::Result;
 use once_cell::sync::Lazy;
+use revm::{context_interface::ContextTr, database::Database};
 use std::str::FromStr;
-use revm::{
-    database::Database, 
-    context_interface::ContextTr
-};
-use crate::{
-    evm::TraceEvm,
-    errors::{EvmError, RuntimeError},
-};
 
 /// Slot for EIP-1967 implementation address
 ///
@@ -86,7 +83,7 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut evm = create_evm("https://eth.llamarpc.com").await?;
-/// 
+///
 /// // USDT proxy contract
 /// let proxy = address!("dac17f958d2ee523a2206206994597c13d831ec7");
 ///
@@ -111,30 +108,40 @@ static IMPLEMENTATION_SLOTS: Lazy<Vec<U256>> = Lazy::new(|| {
 /// - EIP-1822: Universal Upgradeable Proxy Standard (UUPS)
 /// - OpenZeppelin: Legacy proxy implementation
 /// - Beacon: Proxy pattern for multiple contracts sharing same implementation
-pub fn get_implementation<DB,INSP>(
+pub fn get_implementation<DB, INSP>(
     evm: &mut TraceEvm<DB, INSP>,
     proxy: Address,
 ) -> Result<Option<Address>, EvmError>
 where
-    DB: Database
-{   
+    DB: Database,
+{
     // First verify if the contract exists
-    if evm.db().basic(proxy)
-        .map_err(|e| RuntimeError::AccountAccess(format!("Get contract {} state failed: {}",proxy,e)))?
+    if evm
+        .db()
+        .basic(proxy)
+        .map_err(|e| {
+            RuntimeError::AccountAccess(format!("Get contract {proxy} state failed: {e}"))
+        })?
         .is_none()
     {
         return Ok(None);
     }
     // Check each possible implementation slot
     for &slot in IMPLEMENTATION_SLOTS.iter() {
-        let value = evm.db().storage(proxy, slot)
-            .map_err(|e| RuntimeError::SlotAccess(format!("Get contract {} slot {} state failed: {}",proxy,slot,e)))?;
+        let value = evm.db().storage(proxy, slot).map_err(|e| {
+            RuntimeError::SlotAccess(format!(
+                "Get contract {proxy} slot {slot} state failed: {e}"
+            ))
+        })?;
         if value != U256::ZERO {
             let impl_address = Address::from_slice(&value.to_be_bytes::<32>()[12..32]);
 
             // Only verify if the implementation account exists
-            if let Some(impl_acc) = evm.db().basic(impl_address)
-                .map_err(|e| RuntimeError::AccountAccess(format!("Get implementation {} state failed: {}",impl_address,e)))? {
+            if let Some(impl_acc) = evm.db().basic(impl_address).map_err(|e| {
+                RuntimeError::AccountAccess(format!(
+                    "Get implementation {impl_address} state failed: {e}"
+                ))
+            })? {
                 // Check if account has code without loading it
                 if !impl_acc.code_hash.is_zero() {
                     return Ok(Some(impl_address));
