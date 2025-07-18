@@ -41,8 +41,13 @@ where
     /// # Special Cases
     /// - Delegate calls: Maintains original caller
     /// - Value transfers: Only tracked for regular calls
+    ///
     fn call(&mut self, context: &mut CTX, inputs: &mut CallInputs) -> Option<CallOutcome> {
-        let from = self.address_stack.last().copied().unwrap_or(inputs.caller);
+        let mut from = self.address_stack.last().copied().unwrap_or(inputs.caller);
+        if from == Address::ZERO {
+            // If from is zero, use the caller as the effective from address
+            from = inputs.caller;
+        }
         let to = match inputs.scheme {
             CallScheme::DelegateCall => inputs.bytecode_address,
             _ => inputs.target_address,
@@ -91,6 +96,7 @@ where
             error_origin: false,
             subtraces: Vec::new(),
             trace_address,
+            slot_changes: Vec::new(), // Initialize empty slot changes
         };
 
         self.call_traces.push(trace);
@@ -109,8 +115,13 @@ where
     /// # Note
     /// Contract address is initially unknown and updated in create_end
     fn create(&mut self, _context: &mut CTX, inputs: &mut CreateInputs) -> Option<CreateOutcome> {
-        let from = inputs.caller;
-        self.address_stack.push(from);
+        let mut from = self.address_stack.last().copied().unwrap_or(inputs.caller);
+        if from == Address::ZERO {
+            // If from is zero, use the caller as the effective from address
+            from = inputs.caller;
+        }
+        let to = Address::ZERO; // Will be updated in create_end
+        self.address_stack.push(to);
 
         // Track initial ETH transfer
         if inputs.value > U256::ZERO {
@@ -136,7 +147,7 @@ where
 
         let trace = CallTrace {
             from,
-            to: Address::ZERO, // Updated in create_end
+            to, // Updated in create_end
             value: inputs.value,
             input: inputs.init_code.clone(),
             call_scheme: None,
@@ -147,6 +158,7 @@ where
             error_origin: false,
             subtraces: Vec::new(),
             trace_address,
+            slot_changes: Vec::new(), // Initialize empty slot changes
         };
 
         self.call_traces.push(trace);

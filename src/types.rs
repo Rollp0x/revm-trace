@@ -186,6 +186,15 @@ impl CallStatus {
     }
 }
 
+/// Storage slot change during a contract call
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct SlotChange {
+    pub address: Address,
+    pub slot: U256,
+    pub old_value: U256,
+    pub new_value: U256,
+}
+
 /// Detailed trace of a contract call
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct CallTrace {
@@ -213,6 +222,8 @@ pub struct CallTrace {
     pub subtraces: Vec<CallTrace>,
     /// Position in the call tree
     pub trace_address: Vec<usize>,
+    /// Changes to contract storage slots during this call
+    pub slot_changes: Vec<SlotChange>,
 }
 
 impl TokenTransfer {

@@ -27,6 +27,7 @@ Desktop.ini
 # Local environment
 .env
 .env.local
+TxInspector.md
 
 # Backup files
 *~
