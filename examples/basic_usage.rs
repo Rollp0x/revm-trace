@@ -69,7 +69,7 @@ async fn main() -> Result<()> {
         U256::from(1000000), // 1 USDC (6 decimals)
     );
     let tx = SimulationTx {
-        caller: address!("28C6c06298d514Db089934071355E5743bf21d60"),
+        caller: address!("0x28C6c06298d514Db089934071355E5743bf21d60"),
         transact_to: TxKind::Call(usdc),
         value: U256::ZERO,
         data: transfer_data.into(),
@@ -88,6 +88,13 @@ async fn main() -> Result<()> {
         output.len() == 32 && output[31] == 1,
         "❌ Expected transfer to succeed"
     );
+    // print call_trace for debugging
+    if let Some(call_traces) = result.1.call_trace.as_ref() {
+        println!(
+            "Call Trace: {:?} ",
+            call_traces
+        );
+    }
     // Print results
     for transfer in &result.1.asset_transfers {
         let token_info = &get_token_infos(&mut evm, &[transfer.token]).unwrap()[0];

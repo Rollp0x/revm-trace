@@ -14,12 +14,10 @@
 
 use crate::TxInspector;
 use revm::{
-    context::ContextTr,
-    interpreter::{
+    context::ContextTr, interpreter::{
+        interpreter_types::{InputsTr, InterpreterTypes, Jumps, StackTr},
         CallInputs, CallOutcome, CallScheme, CreateInputs, CreateOutcome, Interpreter,
-        InterpreterTypes,
-    },
-    Inspector,
+    }, Database, Inspector
 };
 
 use crate::types::*;
@@ -259,6 +257,41 @@ where
                 token_type: TokenType::Native,
                 id: None,
             });
+        }
+    }
+
+    /// Called after `step` when the instruction has been executed.
+    ///
+    /// Setting `interp.instruction_result` to anything other than [`interpreter::InstructionResult::Continue`]
+    /// alters the execution of the interpreter.
+    fn step(&mut self, interp: &mut Interpreter<INTR>, context: &mut CTX) {
+        let opcode = interp.bytecode.opcode();
+        if opcode == 0x55 && self.call_stack.last().is_some() {
+            let slot = interp.stack.pop();
+            let value = interp.stack.pop();
+            if let Some(value) = value {
+                let _ = interp.stack.push(value);
+            }
+            if let Some(slot) = slot {
+                let _ = interp.stack.push(slot);
+            }
+            match (slot, value) {
+                (Some(slot), Some(value)) => {
+                    let db = context.db();
+                    let target = interp.input.target_address();
+                    let old = db.storage(target, slot).unwrap_or_default();
+                    // Store the slot change in the current call trace
+                    let index = self.call_stack.last().unwrap();
+                    let call_trace = &mut self.call_traces[*index];
+                    call_trace.slot_changes.push(SlotChange {
+                        address: target,
+                        slot,
+                        old_value: old,
+                        new_value: value,
+                    });
+                }
+                _ => {}
+            }
         }
     }
 }
