@@ -133,7 +133,7 @@ async fn worker_thread(
     let elapsed = start_time.elapsed();
 
     match results.into_iter().next() {
-        Some(Ok((execution_result, trace_output))) => {
+        Some(Ok((execution_result, _, trace_output))) => {
             let result_status = if execution_result.is_success() {
                 "SUCCESS".green().bold()
             } else {

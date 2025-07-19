@@ -1,7 +1,9 @@
 use crate::errors::EvmError;
-use crate::types::SimulationBatch;
+use crate::types::{SimulationBatch, SlotChange};
 use revm::context_interface::result::ExecutionResult;
 use revm::inspector::{Inspector, NoOpInspector};
+use std::collections::HashMap;
+use alloy::primitives::Address;
 
 /// Defines how an inspector converts its state to a specific output type
 ///
@@ -65,6 +67,10 @@ pub trait Reset {
     /// This method should clear any accumulated state or metrics,
     /// preparing the inspector for a new transaction.
     fn reset(&mut self);
+
+
+    /// Resets the slot cache used by the inspector
+    fn reset_slot_cache(&mut self);
 }
 
 /// Combined trait for EVM inspectors with tracing capabilities
@@ -201,6 +207,10 @@ impl Reset for () {
     fn reset(&mut self) {
         // No-op for unit type
     }
+
+    fn reset_slot_cache(&mut self) {
+         // No-op for unit type
+    }
 }
 
 impl TraceOutput for () {
@@ -210,8 +220,8 @@ impl TraceOutput for () {
         // No output for unit type
     }
 }
-
-type TraceResult<T> = Result<(ExecutionResult, T), EvmError>;
+pub type StorageDiff = HashMap<Address, Vec<SlotChange>>;
+pub type TraceResult<T> = Result<(ExecutionResult, StorageDiff, T), EvmError>;
 
 /// Defines standard transaction processing capabilities
 ///
@@ -281,6 +291,11 @@ pub trait ResetDB {
 impl Reset for NoOpInspector {
     fn reset(&mut self) {
         // No operation for NoOpInspector - it has no state to reset
+    }
+
+    /// Resets the slot cache used by NoOpInspector
+    fn reset_slot_cache(&mut self) {
+        // No operation for NoOpInspector - it has no slot cache to reset
     }
 }
 

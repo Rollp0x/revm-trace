@@ -37,6 +37,11 @@ impl Reset for TxInspector {
         self.address_stack = Vec::new();
         self.pending_create_transfers = Vec::new();
     }
+
+    /// reset the slot cache
+    fn reset_slot_cache(&mut self) {
+        self.slot_cache.clear();
+    }
 }
 
 impl TraceOutput for TxInspector {

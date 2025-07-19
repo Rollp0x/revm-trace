@@ -172,7 +172,7 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     }
 
     // verify call chain
-    let top_traces = &results[3].1.call_trace;
+    let top_traces = &results[3].2.call_trace;
     assert!(top_traces.is_some(), "Tx should have one top-level traces");
     let top_traces = top_traces.as_ref().unwrap();
     assert!(
@@ -223,7 +223,7 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
     );
 
     // verify error trace
-    let error_trace_address = results[3].1.error_trace_address.as_ref().unwrap();
+    let error_trace_address = results[3].2.error_trace_address.as_ref().unwrap();
     assert_eq!(
         *error_trace_address,
         vec![1, 0],
@@ -314,7 +314,7 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
     }
 
     // verify call chain
-    let top_traces = &results[3].1.call_trace;
+    let top_traces = &results[3].2.call_trace;
     assert!(top_traces.is_some(), "Tx should have one top-level traces");
     let top_traces = top_traces.as_ref().unwrap();
     assert!(
@@ -327,7 +327,7 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
         "Top-level trace should have two subtraces"
     );
 
-    let error_trace_address = results[3].1.error_trace_address.as_ref().unwrap();
+    let error_trace_address = results[3].2.error_trace_address.as_ref().unwrap();
     assert_eq!(
         *error_trace_address,
         vec![0, 0],
@@ -463,7 +463,7 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
 
     // verify call chain
 
-    let top_trace = &results[3].1.call_trace.as_ref().unwrap();
+    let top_trace = &results[3].2.call_trace.as_ref().unwrap();
     assert_eq!(top_trace.subtraces.len(), 1, "Should have one subtrace");
     assert_eq!(top_trace.from, SENDER);
     assert_eq!(top_trace.to, owner_demo_address);
@@ -506,7 +506,7 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
     assert!(final_trace.error_origin, "Subtrace should  be error origin");
 
     // verify error trace
-    let error_trace = results[3].1.error_trace_address.as_ref().unwrap();
+    let error_trace = results[3].2.error_trace_address.as_ref().unwrap();
     assert_eq!(
         *error_trace,
         vec![0, 0],
@@ -586,7 +586,7 @@ async fn test_multicall_with_error() -> anyhow::Result<()> {
 
     // verify error trace
 
-    let error_trace = results[1].1.call_trace.as_ref().unwrap();
+    let error_trace = results[1].2.call_trace.as_ref().unwrap();
     assert_eq!(
         error_trace.from, CAFE_ADDRESS,
         "Error should come from CAFE_ADDRESS call"
@@ -642,7 +642,7 @@ async fn test_create_contract() {
     let result = &results[0].0;
     assert!(result.is_success(), "Contract creation should succeed");
     // verify contract creation output
-    let call_trace = &results[0].1.call_trace.as_ref().unwrap();
+    let call_trace = &results[0].2.call_trace.as_ref().unwrap();
     assert_eq!(call_trace.from, sender, "Creator should match");
     assert_eq!(
         call_trace.to, expected_contract_address,
@@ -693,14 +693,14 @@ async fn test_stateful_and_stateless_call_trace() {
         "Contract creation should succeed"
     );
     assert!(results[1].0.is_success(), "setOwner should succeed");
-    let deploy_call_tx0 = results[0].1.call_trace.as_ref().unwrap();
+    let deploy_call_tx0 = results[0].2.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx0.from, sender, "Creator should match");
     assert_eq!(
         deploy_call_tx0.to, expected_contract_address,
         "Contract address should match"
     );
 
-    let deploy_call_tx1 = results[1].1.call_trace.as_ref().unwrap();
+    let deploy_call_tx1 = results[1].2.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx1.from, sender, "Creator should match");
     assert_eq!(
         deploy_call_tx1.to, expected_contract_address,
@@ -722,14 +722,14 @@ async fn test_stateful_and_stateless_call_trace() {
         "Contract creation should succeed"
     );
     assert!(results[1].0.is_success(), "setOwner should succeed");
-    let deploy_call_tx0 = results[0].1.call_trace.as_ref().unwrap();
+    let deploy_call_tx0 = results[0].2.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx0.from, sender, "Creator should match");
     assert_eq!(
         deploy_call_tx0.to, expected_contract_address,
         "Contract address should match"
     );
 
-    let deploy_call_tx1 = results[1].1.call_trace.as_ref().unwrap();
+    let deploy_call_tx1 = results[1].2.call_trace.as_ref().unwrap();
     assert_eq!(deploy_call_tx1.from, sender, "Creator should match");
     assert_eq!(
         deploy_call_tx1.to, next_contract_address,
@@ -792,7 +792,7 @@ async fn test_wth_ws() -> anyhow::Result<()> {
     // verify first tx
     let result0 = &results[0];
     assert!(result0.0.is_success(), "First tx should succeed");
-    let transfer1 = &result0.1.asset_transfers[0];
+    let transfer1 = &result0.2.asset_transfers[0];
     assert_eq!(transfer1.from, SENDER);
     assert_eq!(transfer1.to, Some(CAFE_ADDRESS));
     assert_eq!(transfer1.value, transfer1_amount);
@@ -801,7 +801,7 @@ async fn test_wth_ws() -> anyhow::Result<()> {
     // verify second transfer
     let result1 = &results[1];
     assert!(result1.0.is_success(), "Second tx should succeed");
-    let transfer2 = &result1.1.asset_transfers[0];
+    let transfer2 = &result1.2.asset_transfers[0];
     assert_eq!(transfer2.from, CAFE_ADDRESS);
     assert_eq!(transfer2.to, Some(DEAD_ADDRESS));
     assert_eq!(transfer2.value, transfer2_amount);

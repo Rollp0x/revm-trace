@@ -49,8 +49,8 @@ async fn main() -> Result<()> {
     println!("\nTransaction Result:");
     println!("-----------------");
     assert!(result.0.is_success(), "❌ Transfer failed");
-    assert!(result.1.asset_transfers.len() == 1, "❌ No transfers found");
-    for transfer in &result.1.asset_transfers {
+    assert!(result.2.asset_transfers.len() == 1, "❌ No transfers found");
+    for transfer in &result.2.asset_transfers {
         println!(
             "Token: {} | Transfer: {} -> {:?} | Type: {:?}, TokenID: {:?}, Amount: {}",
             transfer.token,

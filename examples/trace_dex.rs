@@ -153,7 +153,7 @@ async fn main() -> Result<()> {
     ]));
     // Get all unique tokens
     let mut tokens = vec![];
-    for transfer in &result.1.asset_transfers {
+    for transfer in &result.2.asset_transfers {
         if !tokens.contains(&transfer.token) && transfer.token != Address::ZERO {
             tokens.push(transfer.token);
         }
@@ -174,7 +174,7 @@ async fn main() -> Result<()> {
         token_info_map.insert(tokens[i], token_info);
     }
     // Add transfers to table
-    for transfer in &result.1.asset_transfers {
+    for transfer in &result.2.asset_transfers {
         let amount = if let Some(info) = token_info_map.get(&transfer.token) {
             format_amount(transfer.value, info.decimals)
         } else {

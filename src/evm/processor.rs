@@ -4,10 +4,12 @@
 //! It supports both stateful and stateless execution modes and provides detailed
 //! inspector output for each transaction.
 
+use std::collections::HashMap;
+
 use crate::{
     evm::TraceEvm,
-    traits::{ResetDB, TraceOutput, TransactionTrace},
-    types::{SimulationBatch, SimulationTx},
+    traits::{ResetDB, TraceOutput, TransactionTrace, StorageDiff},
+    types::{SimulationBatch, SimulationTx, SlotChange},
 };
 
 use crate::errors::{EvmError, RuntimeError};
@@ -17,7 +19,7 @@ use revm::{
     context_interface::result::ExecutionResult,
     database::{CacheDB, Database, DatabaseCommit, DatabaseRef},
     handler::MainnetContext,
-    ExecuteEvm, InspectCommitEvm,
+    ExecuteEvm, InspectEvm,
 };
 
 impl<DB, INSP> TraceEvm<DB, INSP>
@@ -50,7 +52,8 @@ where
     fn trace_internal(
         &mut self,
         input: SimulationTx,
-    ) -> Result<(ExecutionResult, INSP::Output), RuntimeError> {
+        is_stateful: bool,
+    ) -> Result<(ExecutionResult, StorageDiff, INSP::Output), RuntimeError> {
         // Reset inspector state before processing
         self.reset_inspector();
 
@@ -74,13 +77,33 @@ where
 
         // Set transaction and execute with current inspector, committing changes
         self.set_tx(tx);
-        let result = self.inspect_replay_commit().map_err(|e| {
+        let result = self.inspect_replay().map_err(|e| {
             RuntimeError::ExecutionFailed(format!("Inspector execution failed: {e}"))
         })?;
-
+        let state = result.state;
+        let result = result.result;
+        let mut diffs = HashMap::new();
+        for (address, account) in state.iter() {
+            for (slot, value) in account.storage.iter() {
+                if value.original_value != value.present_value {
+                    // Store slot changes for diff output
+                    diffs.entry(*address).or_insert_with(Vec::new).push(SlotChange {
+                        address: *address,
+                        slot: *slot,
+                        old_value: value.original_value,
+                        new_value: value.present_value,
+                    });
+                }
+            }
+        }
+        if is_stateful {
+            self.db().commit(state)
+        } else {
+            self.inspector.reset_slot_cache();
+        }
         // Collect inspector output
         let output = self.get_inspector_output();
-        Ok((result, output))
+        Ok((result, diffs, output))
     }
 }
 
@@ -133,7 +156,7 @@ where
     fn trace_transactions(
         &mut self,
         batch: SimulationBatch,
-    ) -> Vec<Result<(ExecutionResult, <Self::Inspector as TraceOutput>::Output), EvmError>> {
+    ) -> Vec<Result<(ExecutionResult, StorageDiff, <Self::Inspector as TraceOutput>::Output), EvmError>> {
         let SimulationBatch {
             transactions,
             is_stateful,
@@ -141,19 +164,16 @@ where
 
         // 2. Reset database to clean state
         self.reset_db();
+        // reset inspector slot cache
+        self.inspector.reset_slot_cache();
 
         let len = transactions.len();
         let mut results = Vec::with_capacity(len);
 
         // 3. Process each transaction in the batch
-        for (index, input) in transactions.into_iter().enumerate() {
-            let result = self.trace_internal(input).map_err(EvmError::Runtime);
+        for input in transactions.into_iter() {
+            let result = self.trace_internal(input, is_stateful).map_err(EvmError::Runtime);
             results.push(result);
-
-            // Reset database between transactions if stateless mode
-            if index != len - 1 && !is_stateful {
-                self.reset_db();
-            }
         }
 
         // 4. Clean up inspector state after batch completion
@@ -205,7 +225,7 @@ where
     ) -> Vec<Result<ExecutionResult, EvmError>> {
         self.trace_transactions(batch)
             .into_iter()
-            .map(|result| result.map(|(exec_result, _)| exec_result))
+            .map(|result| result.map(|(exec_result, _  , _)| exec_result))
             .collect()
     }
 }

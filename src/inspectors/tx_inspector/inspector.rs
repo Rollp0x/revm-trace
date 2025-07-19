@@ -277,9 +277,14 @@ where
             }
             match (slot, value) {
                 (Some(slot), Some(value)) => {
-                    let db = context.db();
                     let target = interp.input.target_address();
-                    let old = db.storage(target, slot).unwrap_or_default();
+                    let cached = self.slot_cache.get(&(target, slot));
+                    let old = if let Some(old) = cached {
+                        *old
+                    } else {
+                        context.db().storage(target, slot).unwrap_or_default()
+                    };
+
                     // Store the slot change in the current call trace
                     let index = self.call_stack.last().unwrap();
                     let call_trace = &mut self.call_traces[*index];
@@ -289,6 +294,8 @@ where
                         old_value: old,
                         new_value: value,
                     });
+                    // Update the slot cache
+                    self.slot_cache.insert((target, slot), value);
                 }
                 _ => {}
             }

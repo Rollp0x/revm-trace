@@ -261,7 +261,7 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
             Ok(mut evm) => {
                 let results = evm.trace_transactions(batch);
                 match results.into_iter().next() {
-                    Some(Ok((execution_result, trace_output))) => SimulateResponse {
+                    Some(Ok((execution_result, _, trace_output))) => SimulateResponse {
                         success: true,
                         gas_used: Some(execution_result.gas_used()),
                         error: None,

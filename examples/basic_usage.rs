@@ -88,15 +88,19 @@ async fn main() -> Result<()> {
         output.len() == 32 && output[31] == 1,
         "❌ Expected transfer to succeed"
     );
+    // print slot changes for debugging
+    for(_,change) in result.1.iter()  {
+        println!("Slot Change: {:?}", change);
+    }
     // print call_trace for debugging
-    if let Some(call_traces) = result.1.call_trace.as_ref() {
+    if let Some(call_traces) = result.2.call_trace.as_ref() {
         println!(
             "Call Trace: {:?} ",
             call_traces
         );
     }
     // Print results
-    for transfer in &result.1.asset_transfers {
+    for transfer in &result.2.asset_transfers {
         let token_info = &get_token_infos(&mut evm, &[transfer.token]).unwrap()[0];
 
         println!(

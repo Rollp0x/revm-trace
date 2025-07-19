@@ -40,7 +40,7 @@ async fn test_basic_usage() -> anyhow::Result<()> {
         .collect::<Vec<_>>();
 
     // Process results
-    for (execution_result, inspector_output) in results {
+    for (execution_result, _, inspector_output) in results {
         match execution_result.is_success() {
             true => {
                 println!("Transaction succeeded!");

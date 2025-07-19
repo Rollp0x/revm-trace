@@ -42,12 +42,12 @@
 //!
 //! ```toml
 //! [dependencies]
-//! revm-trace = "4.0.1"
+//! revm-trace = "4.1.0"
 //!
 //! # TLS Backend Selection (choose one):
 //! # Default: native-tls (OpenSSL) for maximum compatibility
 //! # Alternative: Pure Rust TLS for system-dependency-free builds
-//! # revm-trace = { version = "4.0.1", default-features = false, features = ["rustls-tls"] }
+//! # revm-trace = { version = "4.1.0", default-features = false, features = ["rustls-tls"] }
 //! ```
 
 pub mod errors;

@@ -91,7 +91,7 @@ where
         }
         // Step 2: Clear the outer CacheDB cache
         self.reset_db();
-
+        
         // Step 3: Update the EVM's block context
         self.set_block(block_env);
 

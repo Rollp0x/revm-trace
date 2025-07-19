@@ -24,7 +24,8 @@ use serde::Serialize;
 mod inspector;
 mod trace;
 mod traits;
-use alloy::primitives::{Address, Log};
+use alloy::primitives::{Address, Log, U256};
+use std::collections::HashMap;
 
 /// Core transaction tracing inspector
 ///
@@ -68,9 +69,11 @@ pub struct TxInspector {
     /// to properly handle nested contract creations. Operates in parallel with
     /// call_stack to maintain proper creation context.
     pending_create_transfers: Vec<(usize, TokenTransfer)>,
+    /// Cache for storage slot values to avoid redundant database queries
+    slot_cache: HashMap<(Address, U256), U256>,
 }
 
-// 显式实现 Send 和 Sync 以确保多线程安全
+// The explicit implementation of Send and Sync ensures thread safety.
 unsafe impl Send for TxInspector {}
 unsafe impl Sync for TxInspector {}
 

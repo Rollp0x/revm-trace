@@ -206,7 +206,7 @@ async fn main() -> Result<()> {
     let output = result.0.output().unwrap();
     assert!(output.len() == 32 && output[31] == 1,"❌ Expected transfer to succeed");
     // Print results
-    for transfer in &result.1.asset_transfers {
+    for transfer in &result.2.asset_transfers {
         let token_info = &get_token_infos(&mut evm, &[transfer.token]).unwrap()[0];
         println!(
             "Transfer: {} {} -> {}: {}",
