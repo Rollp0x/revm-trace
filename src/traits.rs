@@ -1,5 +1,5 @@
 use crate::errors::EvmError;
-use crate::types::{SimulationBatch, SlotChange};
+use crate::types::{SimulationBatch, SlotAccess};
 use revm::context_interface::result::ExecutionResult;
 use revm::inspector::{Inspector, NoOpInspector};
 use std::collections::HashMap;
@@ -220,7 +220,7 @@ impl TraceOutput for () {
         // No output for unit type
     }
 }
-pub type StorageDiff = HashMap<Address, Vec<SlotChange>>;
+pub type StorageDiff = HashMap<Address, Vec<SlotAccess>>;
 pub type TraceResult<T> = Result<(ExecutionResult, StorageDiff, T), EvmError>;
 
 /// Defines standard transaction processing capabilities

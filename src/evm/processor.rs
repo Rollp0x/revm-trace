@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use crate::{
     evm::TraceEvm,
     traits::{ResetDB, TraceOutput, TransactionTrace, StorageDiff},
-    types::{SimulationBatch, SimulationTx, SlotChange},
+    types::{SimulationBatch, SimulationTx, SlotAccess},
 };
 
 use crate::errors::{EvmError, RuntimeError};
@@ -87,11 +87,12 @@ where
             for (slot, value) in account.storage.iter() {
                 if value.original_value != value.present_value {
                     // Store slot changes for diff output
-                    diffs.entry(*address).or_insert_with(Vec::new).push(SlotChange {
+                    diffs.entry(*address).or_insert_with(Vec::new).push(SlotAccess {
                         address: *address,
                         slot: *slot,
                         old_value: value.original_value,
                         new_value: value.present_value,
+                        is_write: true,
                     });
                 }
             }

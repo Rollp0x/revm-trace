@@ -29,5 +29,7 @@ Desktop.ini
 .env.local
 TxInspector.md
 
+examples/proxy_attack.rs
+
 # Backup files
 *~

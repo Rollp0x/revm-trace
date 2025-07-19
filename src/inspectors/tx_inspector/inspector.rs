@@ -94,7 +94,7 @@ where
             error_origin: false,
             subtraces: Vec::new(),
             trace_address,
-            slot_changes: Vec::new(), // Initialize empty slot changes
+            slot_accesses: Vec::new(), // Initialize empty slot accesses
         };
 
         self.call_traces.push(trace);
@@ -156,7 +156,7 @@ where
             error_origin: false,
             subtraces: Vec::new(),
             trace_address,
-            slot_changes: Vec::new(), // Initialize empty slot changes
+            slot_accesses: Vec::new(), // Initialize empty slot accesses
         };
 
         self.call_traces.push(trace);
@@ -288,16 +288,38 @@ where
                     // Store the slot change in the current call trace
                     let index = self.call_stack.last().unwrap();
                     let call_trace = &mut self.call_traces[*index];
-                    call_trace.slot_changes.push(SlotChange {
+                    call_trace.slot_accesses.push(SlotAccess {
                         address: target,
                         slot,
                         old_value: old,
                         new_value: value,
+                        is_write: true, // This is a write operation
                     });
                     // Update the slot cache
                     self.slot_cache.insert((target, slot), value);
                 }
                 _ => {}
+            }
+        } else if opcode == 0x54 && self.call_stack.last().is_some() {
+            let slot = interp.stack.pop();
+            if let Some(slot) = slot {
+                let _ = interp.stack.push(slot);
+                let target = interp.input.target_address();
+                let cached = self.slot_cache.get(&(target, slot));
+                let value = if let Some(old) = cached {
+                    *old
+                } else {
+                    context.db().storage(target, slot).unwrap_or_default()
+                };
+                let index = self.call_stack.last().unwrap();
+                let call_trace = &mut self.call_traces[*index];
+                call_trace.slot_accesses.push(SlotAccess {
+                    address: target,
+                    slot,
+                    old_value: value,
+                    new_value: value,
+                    is_write: false, // This is a read operation
+                });
             }
         }
     }

@@ -12,7 +12,7 @@ pub use revm::{
     database::AlloyDB,
     interpreter::{CallScheme, CreateScheme},
 };
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 pub const ERC20_TRANSFER_EVENT_SIGNATURE: FixedBytes<32> =
     fixed_bytes!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef");
@@ -187,13 +187,15 @@ impl CallStatus {
 }
 
 /// Storage slot change during a contract call
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct SlotChange {
+#[derive(Debug, Clone, Serialize, Deserialize,Default)]
+pub struct SlotAccess {
     pub address: Address,
     pub slot: U256,
     pub old_value: U256,
     pub new_value: U256,
+    pub is_write: bool, // true=write, false=read
 }
+
 
 /// Detailed trace of a contract call
 #[derive(Debug, Clone, Serialize, Default)]
@@ -222,8 +224,8 @@ pub struct CallTrace {
     pub subtraces: Vec<CallTrace>,
     /// Position in the call tree
     pub trace_address: Vec<usize>,
-    /// Changes to contract storage slots during this call
-    pub slot_changes: Vec<SlotChange>,
+    /// Access to contract storage slots during this call
+    pub slot_accesses: Vec<SlotAccess>,
 }
 
 impl TokenTransfer {
