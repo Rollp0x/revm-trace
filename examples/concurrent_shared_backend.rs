@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! # Concurrent SharedBackend Demo
 //!
 //! This example demonstrates the multi-threading capabilities of SharedBackend:

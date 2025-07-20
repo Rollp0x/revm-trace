@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::{
     evm::TraceEvm,
-    traits::{ResetDB, TraceOutput, TransactionTrace, StorageDiff},
+    traits::{ResetDB, StorageDiff, TraceOutput, TransactionTrace},
     types::{SimulationBatch, SimulationTx, SlotAccess},
 };
 
@@ -87,13 +87,16 @@ where
             for (slot, value) in account.storage.iter() {
                 if value.original_value != value.present_value {
                     // Store slot changes for diff output
-                    diffs.entry(*address).or_insert_with(Vec::new).push(SlotAccess {
-                        address: *address,
-                        slot: *slot,
-                        old_value: value.original_value,
-                        new_value: value.present_value,
-                        is_write: true,
-                    });
+                    diffs
+                        .entry(*address)
+                        .or_insert_with(Vec::new)
+                        .push(SlotAccess {
+                            address: *address,
+                            slot: *slot,
+                            old_value: value.original_value,
+                            new_value: value.present_value,
+                            is_write: true,
+                        });
                 }
             }
         }
@@ -157,7 +160,16 @@ where
     fn trace_transactions(
         &mut self,
         batch: SimulationBatch,
-    ) -> Vec<Result<(ExecutionResult, StorageDiff, <Self::Inspector as TraceOutput>::Output), EvmError>> {
+    ) -> Vec<
+        Result<
+            (
+                ExecutionResult,
+                StorageDiff,
+                <Self::Inspector as TraceOutput>::Output,
+            ),
+            EvmError,
+        >,
+    > {
         let SimulationBatch {
             transactions,
             is_stateful,
@@ -173,7 +185,9 @@ where
 
         // 3. Process each transaction in the batch
         for input in transactions.into_iter() {
-            let result = self.trace_internal(input, is_stateful).map_err(EvmError::Runtime);
+            let result = self
+                .trace_internal(input, is_stateful)
+                .map_err(EvmError::Runtime);
             results.push(result);
         }
 
@@ -226,7 +240,7 @@ where
     ) -> Vec<Result<ExecutionResult, EvmError>> {
         self.trace_transactions(batch)
             .into_iter()
-            .map(|result| result.map(|(exec_result, _  , _)| exec_result))
+            .map(|result| result.map(|(exec_result, _, _)| exec_result))
             .collect()
     }
 }

@@ -39,6 +39,7 @@ pub use revm::{
 use std::ops::{Deref, DerefMut};
 
 // Sub-modules for EVM functionality
+#[cfg(any(feature = "default", feature = "rustls-tls"))]
 pub mod builder;
 pub mod inspector;
 pub mod processor;

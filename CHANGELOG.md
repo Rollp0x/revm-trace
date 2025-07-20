@@ -1,9 +1,29 @@
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+
+# [4.1.0] - 2025-07-20
+
+### Added
+- **Global Storage Slot Change Tracking**: Simulation results now include a complete record of all storage slot changes (SlotAccess) for each transaction, enabling precise analysis of how contract state evolves during execution.
+- **Per-CallTrace Slot Access Details**: Each CallTrace now records all slot accesses (reads and writes), with unified structure and type filtering (read/write/all), making it easy to audit every storage operation in the call tree.
+
+### Use Cases
+- **Security Analysis**: These features make it possible to reconstruct the full storage mutation history of any transaction, which is invaluable for analyzing hacker attacks, privilege escalations, and complex DeFi exploits.
+- **Safe Wallet Auditing**: You can now inspect every storage read/write in Safe (Gnosis Safe) wallet transactions, helping to verify transaction intent and detect suspicious or unexpected state changes.
+
+### Changed
+- **API Change**: The return value of simulation functions has changed to include global slot change records. This is a breaking change for users relying on previous output formats.
+- **CallTrace Structure**: CallTrace now contains a `slot_accesses` field, unifying slot read/write history for each call.
+
+### Documentation
+- Updated README and examples to demonstrate how to use the new slot tracking and analysis features for security and auditing scenarios.
+
 
 ## [4.0.2] - 2025-07-17
 

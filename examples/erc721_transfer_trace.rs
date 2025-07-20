@@ -48,6 +48,8 @@ async fn main() -> Result<()> {
 
     println!("\nTransaction Result:");
     println!("-----------------");
+    println!("State diff: {:?}", result.1);
+    println!("Call Trace: {:?}", result.2.call_trace.unwrap());
     assert!(result.0.is_success(), "❌ Transfer failed");
     assert!(result.2.asset_transfers.len() == 1, "❌ No transfers found");
     for transfer in &result.2.asset_transfers {

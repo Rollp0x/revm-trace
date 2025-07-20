@@ -14,10 +14,12 @@
 
 use crate::TxInspector;
 use revm::{
-    context::ContextTr, interpreter::{
+    context::ContextTr,
+    interpreter::{
         interpreter_types::{InputsTr, InterpreterTypes, Jumps, StackTr},
         CallInputs, CallOutcome, CallScheme, CreateInputs, CreateOutcome, Interpreter,
-    }, Database, Inspector
+    },
+    Database, Inspector,
 };
 
 use crate::types::*;
@@ -275,30 +277,27 @@ where
             if let Some(slot) = slot {
                 let _ = interp.stack.push(slot);
             }
-            match (slot, value) {
-                (Some(slot), Some(value)) => {
-                    let target = interp.input.target_address();
-                    let cached = self.slot_cache.get(&(target, slot));
-                    let old = if let Some(old) = cached {
-                        *old
-                    } else {
-                        context.db().storage(target, slot).unwrap_or_default()
-                    };
+            if let (Some(slot), Some(value)) = (slot, value) {
+                let target = interp.input.target_address();
+                let cached = self.slot_cache.get(&(target, slot));
+                let old = if let Some(old) = cached {
+                    *old
+                } else {
+                    context.db().storage(target, slot).unwrap_or_default()
+                };
 
-                    // Store the slot change in the current call trace
-                    let index = self.call_stack.last().unwrap();
-                    let call_trace = &mut self.call_traces[*index];
-                    call_trace.slot_accesses.push(SlotAccess {
-                        address: target,
-                        slot,
-                        old_value: old,
-                        new_value: value,
-                        is_write: true, // This is a write operation
-                    });
-                    // Update the slot cache
-                    self.slot_cache.insert((target, slot), value);
-                }
-                _ => {}
+                // Store the slot change in the current call trace
+                let index = self.call_stack.last().unwrap();
+                let call_trace = &mut self.call_traces[*index];
+                call_trace.slot_accesses.push(SlotAccess {
+                    address: target,
+                    slot,
+                    old_value: old,
+                    new_value: value,
+                    is_write: true, // This is a write operation
+                });
+                // Update the slot cache
+                self.slot_cache.insert((target, slot), value);
             }
         } else if opcode == 0x54 && self.call_stack.last().is_some() {
             let slot = interp.stack.pop();

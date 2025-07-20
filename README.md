@@ -1,4 +1,5 @@
-# REVM Transaction Simulator and Analyzer v4.0
+
+# REVM Transaction Simulator and Analyzer v4.1
 
 A high-performance, **multi-threaded** Rust library for EVM transaction simulation and analysis, built on [REVM](https://github.com/bluealloy/revm).
 
@@ -8,16 +9,29 @@ A high-performance, **multi-threaded** Rust library for EVM transaction simulati
 - **Preview** all transaction effects in a safe, isolated environment
 - **Process** multiple transactions concurrently with built-in thread safety
 
+
 Perfect for:
 - DeFi developers testing complex interactions
 - Safe wallet users validating Safe transaction safety
 - Protocol teams analyzing contract behaviors
 - Security researchers investigating transaction patterns
 - High-throughput applications requiring concurrent transaction processing
+- Security auditing and attack analysis: Track every storage slot read/write, reconstruct the full mutation history of any transaction, and analyze complex exploits or Safe wallet operations with unprecedented detail.
 
 ---
 
-## 🚀 What's New in v4.0
+
+## 🚀 What's New in v4.1.0
+
+- **Comprehensive Storage Slot Access Tracking**: All transaction traces now include a unified, global record of every storage slot read and write (SlotAccess), with full details (slot address, old/new value, access type, call context, etc.).
+- **Recursive Call Trace Slot Access**: Each call trace (`CallTrace`) now recursively collects all slot accesses (read/write/all), supporting deep contract call trees and complex exploit analysis.
+- **Type Filtering API**: Easily filter slot accesses by type (read/write/all) for both global and per-call-trace analysis, enabling precise state mutation auditing.
+- **Security & Audit Ready**: Instantly reconstruct the full mutation history of any transaction, analyze Safe wallet operations, privilege escalations, and hacker attacks with unprecedented granularity.
+- **Backward Compatible**: Existing simulation, asset transfer, and event tracing APIs remain unchanged—slot access tracking is fully additive.
+
+---
+
+### v4.0 Highlights (for reference)
 
 - **Unified EVM Construction with EvmBuilder**: Use `EvmBuilder` for full control (custom block height, inspector, etc.). For convenience, use `create_evm` and `create_evm_with_tracer` for quick EVM creation at the latest block.
 - **Block Height Management**: Specify block height via builder pattern, or update after creation with `set_db_block` (which also resets the database cache to ensure state consistency).
@@ -50,6 +64,7 @@ Perfect for:
 - **Change Block Context After Creation**
   ```rust
   // After creating the EVM, you can update the block context:
+  // This will also create a brand new EVM environment and clears all internal cache.
   evm.set_db_block(block_env)?;
   ```
 
@@ -73,12 +88,15 @@ Perfect for:
 
 ---
 
+
 ### Key Features
 
 - **Flexible EVM Construction**: Unified builder pattern for AlloyDB and Foundry-fork-db backends.
 - **Customizable Inspector System**: Use built-in `TxInspector` or your own inspector for tracing and analysis.
 - **Multi-Threaded & High-Performance**: Foundry-fork-db backend enables safe, concurrent simulation with shared cache.
 - **Batch Processing & Asset Analysis**: Simulate and analyze multiple transactions, including asset transfers and call traces.
+- **Comprehensive Storage Slot Tracking**: Every transaction now returns a global record of all storage slot changes (SlotAccess), and each call trace records every slot read/write (with type filtering and unified structure). This enables full reconstruction of storage mutation history for any transaction.
+- **Security & Audit Ready**: Instantly see which slots were read or written, in what order, and by which contract call—ideal for analyzing hacker attacks, privilege escalations, Safe wallet operations, and more.
 - **Safe Simulation**: All simulations are isolated—no real blockchain state is modified.
 - **EVM-Compatible Chain Support**: Works with any EVM-compatible blockchain, not just Ethereum mainnet.
 - **Rich Utility Functions**: Includes tools for batch querying token balances, simulating Multicall deployment and batch execution, and more.
@@ -92,11 +110,16 @@ Perfect for:
 - The core value of this crate lies in the `TxInspector` and its output `TxTraceOutput`, which provide detailed, structured tracing of transaction execution, asset transfers, call trees, events, and errors.
 - For custom analysis (e.g., storage slot changes, balance diffs, or other state introspection), users can run their own simulation loop, obtain `ResultAndState` from REVM, and combine it with `TxInspector` for maximum flexibility.
 
+
 ### TxInspector Highlights
 
 - **Comprehensive Asset Transfer Tracking**: Automatically tracks ETH and ERC20 transfers with full context.
 - **Advanced Call Tree Analysis**: Builds hierarchical call traces and pinpoints error locations.
 - **Event Log Collection**: Captures and parses all emitted events during simulation.
+- **Full Storage Slot Access History**: For every transaction and every call trace, records all storage slot reads and writes (SlotAccess), including slot address, old/new value, and access type (read/write). This enables:
+    - Step-by-step reconstruction of how a hacker or contract modifies storage
+    - Auditing Safe wallet transactions for unexpected or suspicious state changes
+    - Deep debugging of DeFi protocols and complex contract logic
 - **Error Investigation Tools**: Locates exact failure points in complex call chains, decodes revert reasons, and provides contract-specific error context.
 - **Performance**: Optimized for both single transaction and batch processing scenarios.
 
@@ -107,7 +130,7 @@ Perfect for:
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-revm-trace = "4.0.2"
+revm-trace = "4.1.0"
 ```
 
 ### TLS Backend Selection
@@ -116,106 +139,47 @@ revm-trace = "4.0.2"
 
 ```toml
 # Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
-revm-trace = "4.0.2"
+revm-trace = "4.1.0"
 
 # Option 2: Pure Rust TLS with rustls for system-dependency-free builds
-revm-trace = { version = "4.0.2", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "4.1.0", default-features = false, features = ["rustls-tls"] }
 ```
 
 ---
 
-## More Examples
 
-See the [examples directory](./examples/) for:
-- Multi-threaded simulation (`concurrent_shared_backend.rs`)
-- Custom block height and inspector usage
-- Batch processing and multicall
-- DeFi, token, and proxy contract analysis
+## Quick Example
 
----
-
-## Example: Simulate an ERC20 Token Transfer
-
-Below is a complete example demonstrating how to simulate an ERC20 token transfer, track the result, and display transfer information with token details. This example works with both AlloyDB (default) and Foundry-fork-db (with the `foundry-fork` feature enabled):
+Simulate an ERC20 transfer and print slot changes in just a few lines:
 
 ```rust
-use revm_trace::{
-    TransactionTrace,
-    utils::erc20_utils::get_token_infos,
-    SimulationBatch, SimulationTx, TxInspector
-};
-use anyhow::Result;
-use alloy::{
-    primitives::{address, utils::format_units, Address, U256,TxKind}, 
-    sol, sol_types::SolCall
-};
-
-#[cfg(not(feature = "foundry-fork"))]
-use revm_trace::create_evm_with_tracer;
-
-#[cfg(feature = "foundry-fork")]
-use revm_trace::create_shared_evm_with_tracer;
-
-// Define ERC20 interface for transfer function
-sol!(
-    contract ERC20 {
-        function transfer(address to, uint256 amount) external returns (bool);
-    }
-);
-
-fn encode_erc20_transfer(to: Address, amount: U256) -> Vec<u8> {
-    ERC20::transferCall { to, amount }.abi_encode()
-}
-
-const ETH_RPC_URL: &str = "https://eth.llamarpc.com";
+use revm_trace::{create_evm_with_tracer, types::SlotAccessType, SimulationTx, SimulationBatch, TxInspector};
+use alloy::primitives::{address, U256, TxKind};
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    #[cfg(not(feature = "foundry-fork"))]
-    println!("Using AlloyDB backend for EVM simulation");
-    #[cfg(feature = "foundry-fork")]
-    println!("Using Foundry fork backend for EVM simulation");
+async fn main() {
     let inspector = TxInspector::new();
-    #[cfg(not(feature = "foundry-fork"))]
-    let mut evm = create_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
-    #[cfg(feature = "foundry-fork")]
-    let mut evm = create_shared_evm_with_tracer(
-        ETH_RPC_URL,
-        inspector,
-    ).await?;
-    // USDC proxy contract address
-    let usdc = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-    // Construct transfer call data
-    let transfer_data = encode_erc20_transfer(
-        address!("34e5dacdc16ff5bcdbdfa66c21a20f46347d86cf "),
-        U256::from(1000000), // 1 USDC (6 decimals)
-    );
+    let mut evm = create_evm_with_tracer("https://eth.llamarpc.com", inspector).await.unwrap();
     let tx = SimulationTx {
         caller: address!("28C6c06298d514Db089934071355E5743bf21d60"),
-        transact_to: TxKind::Call(usdc),
+        transact_to: TxKind::Call(address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48")),
         value: U256::ZERO,
-        data: transfer_data.into(),
+        data: hex::decode("a9059cbb00000000000000000000000034e5dacdc16ff5bcdbdfa66c21a20f46347d86cf00000000000000000000000000000000000000000000000000000000000f4240").unwrap().into(),
     };
     let result = &evm.trace_transactions(SimulationBatch {
         is_stateful: false,
         transactions: vec![tx],
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0];
-    let output = result.0.output().unwrap();
-    assert!(output.len() == 32 && output[31] == 1,"❌ Expected transfer to succeed");
-    // Print results
-    for transfer in &result.2.asset_transfers {
-        let token_info = &get_token_infos(&mut evm, &[transfer.token]).unwrap()[0];
-        println!(
-            "Transfer: {} {} -> {}: {}",
-            token_info.symbol, transfer.from, transfer.to.unwrap(), format_units(transfer.value, token_info.decimals).unwrap()
-        );
+    // Print all slot writes in the call trace
+    if let Some(call_trace) = result.2.call_trace.as_ref() {
+        for change in call_trace.all_slot_accesses(SlotAccessType::Write) {
+            println!("Slot Write: {:?}", change);
+        }
     }
-    Ok(())
 }
 ```
+
+See [examples/](./examples/) for advanced usage: multi-threaded simulation, custom inspectors, batch processing, DeFi/security analysis, and more.
 
 ---
 
@@ -237,5 +201,5 @@ Built with ❤️ using:
 
 ---
 
-**REVM-Trace v4.0** - *Multi-threaded EVM simulation with comprehensive analysis*
+**REVM-Trace v4.1.0** - *Multi-threaded EVM simulation with comprehensive analysis*
 

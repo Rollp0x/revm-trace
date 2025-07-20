@@ -35,7 +35,7 @@
 //! ### Multi-Threading Solution with SharedBackend
 //!
 //! While EVMs themselves are not thread-safe, `SharedBackend` **IS Send + Sync** and can
-//! be safely shared across threads. 
+//! be safely shared across threads.
 //!
 //! 1. **Create SharedBackend**: Use `create_shared_backend()` on the main thread
 //! 2. **Share Backend**: Clone the SharedBackend for each worker thread  

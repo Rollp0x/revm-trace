@@ -1,3 +1,35 @@
+/// SlotAccessType , used to filter slot access types
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SlotAccessType {
+    Read,
+    Write,
+    All,
+}
+
+impl CallTrace {
+    /// Internal recursive function to collect all slot accesses with filter
+    fn collect_slot_accesses<'a>(&'a self, filter: SlotAccessType, out: &mut Vec<&'a SlotAccess>) {
+        for access in &self.slot_accesses {
+            match filter {
+                SlotAccessType::All => out.push(access),
+                SlotAccessType::Read if !access.is_write => out.push(access),
+                SlotAccessType::Write if access.is_write => out.push(access),
+                _ => {}
+            }
+        }
+        for sub in &self.subtraces {
+            sub.collect_slot_accesses(filter, out);
+        }
+    }
+
+    /// Returns all slot_accesses references (filtered by type: Read, Write, or All)
+    pub fn all_slot_accesses(&self, filter: SlotAccessType) -> Vec<&SlotAccess> {
+        let mut result = Vec::new();
+        self.collect_slot_accesses(filter, &mut result);
+        result
+    }
+}
+
 use crate::MyWrapDatabaseAsync;
 use alloy::{
     network::AnyNetwork,
@@ -12,7 +44,7 @@ pub use revm::{
     database::AlloyDB,
     interpreter::{CallScheme, CreateScheme},
 };
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 pub const ERC20_TRANSFER_EVENT_SIGNATURE: FixedBytes<32> =
     fixed_bytes!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef");
@@ -187,7 +219,7 @@ impl CallStatus {
 }
 
 /// Storage slot change during a contract call
-#[derive(Debug, Clone, Serialize, Deserialize,Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SlotAccess {
     pub address: Address,
     pub slot: U256,
@@ -195,7 +227,6 @@ pub struct SlotAccess {
     pub new_value: U256,
     pub is_write: bool, // true=write, false=read
 }
-
 
 /// Detailed trace of a contract call
 #[derive(Debug, Clone, Serialize, Default)]

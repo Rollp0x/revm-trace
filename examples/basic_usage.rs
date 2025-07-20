@@ -14,8 +14,8 @@ use alloy::{
 };
 use anyhow::Result;
 use revm_trace::{
-    utils::erc20_utils::get_token_infos, SimulationBatch, SimulationTx, TransactionTrace,
-    TxInspector,
+    types::SlotAccessType, utils::erc20_utils::get_token_infos, SimulationBatch, SimulationTx,
+    TransactionTrace, TxInspector,
 };
 
 #[cfg(not(feature = "foundry-fork"))]
@@ -89,15 +89,15 @@ async fn main() -> Result<()> {
         "❌ Expected transfer to succeed"
     );
     // print slot changes for debugging
-    for(_,change) in result.1.iter()  {
-        println!("Slot Change: {:?}", change);
+    for (_, change) in result.1.iter() {
+        println!("Slot Change on global: {:?}", change);
     }
-    // print call_trace for debugging
-    if let Some(call_traces) = result.2.call_trace.as_ref() {
-        println!(
-            "Call Trace: {:?} ",
-            call_traces
-        );
+    // print call_trace's slot changes detail for debugging
+    if let Some(call_trace) = result.2.call_trace.as_ref() {
+        let slot_changes = call_trace.all_slot_accesses(SlotAccessType::Write);
+        for change in slot_changes {
+            println!("Slot Change detail: {:?}", change);
+        }
     }
     // Print results
     for transfer in &result.2.asset_transfers {
