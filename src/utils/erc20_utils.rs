@@ -118,7 +118,7 @@ where
     };
     let ref_tx = evm
         .transact(tx_name)
-        .map_err(|e| TokenError::AnyhowError(format!("Failed to query token name: {}", e)))?;
+        .map_err(|e| TokenError::AnyhowError(format!("Failed to query token name: {e}")))?;
     let name = match ref_tx.result {
         ExecutionResult::Success {
             output: Output::Call(value),
@@ -143,7 +143,7 @@ where
     };
     let ref_tx = evm
         .transact(tx_symbol)
-        .map_err(|e| TokenError::AnyhowError(format!("Failed to query token symbol: {}", e)))?;
+        .map_err(|e| TokenError::AnyhowError(format!("Failed to query token symbol: {e}")))?;
     let symbol = match ref_tx.result {
         ExecutionResult::Success {
             output: Output::Call(value),
@@ -167,7 +167,7 @@ where
     };
     let ref_tx = evm
         .transact(tx_decimals)
-        .map_err(|e| TokenError::AnyhowError(format!("Failed to query token decimals: {}", e)))?;
+        .map_err(|e| TokenError::AnyhowError(format!("Failed to query token decimals: {e}")))?;
     let decimals = match ref_tx.result {
         ExecutionResult::Success {
             output: Output::Call(value),
@@ -188,9 +188,9 @@ where
         chain_id: Some(evm.cfg.chain_id),
         ..Default::default()
     };
-    let ref_tx = evm.transact(tx_total_supply).map_err(|e| {
-        TokenError::AnyhowError(format!("Failed to query token total supply: {}", e))
-    })?;
+    let ref_tx = evm
+        .transact(tx_total_supply)
+        .map_err(|e| TokenError::AnyhowError(format!("Failed to query token total supply: {e}")))?;
     let total_supply = match ref_tx.result {
         ExecutionResult::Success {
             output: Output::Call(value),
