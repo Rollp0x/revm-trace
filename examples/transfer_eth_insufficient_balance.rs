@@ -20,7 +20,7 @@
 use alloy::primitives::{address, TxKind, U256};
 use anyhow::Result;
 use colored::*;
-use revm_trace::{SimulationBatch, SimulationTx, TransactionTrace};
+use revm_trace::{types::StateOverride, SimulationBatch, SimulationTx, TransactionTrace};
 
 #[cfg(not(feature = "foundry-fork"))]
 use revm_trace::create_evm;
@@ -56,7 +56,7 @@ async fn main() -> Result<()> {
 
     // Create transfer transaction
     // Empty data field as this is a simple ETH transfer
-    let tx = SimulationTx {
+    let tx: SimulationTx = SimulationTx {
         caller: safe,
         transact_to: TxKind::Call(to),
         value: amount,
@@ -66,8 +66,9 @@ async fn main() -> Result<()> {
     // Create transaction batch
     // Note: is_stateful doesn't matter here as transaction will fail validation
     let txs = SimulationBatch {
-        transactions: vec![tx],
+        transactions: vec![tx.clone()],
         is_stateful: true,
+        overrides: None,
     };
 
     // Process transaction
@@ -84,6 +85,24 @@ async fn main() -> Result<()> {
     println!(
         "{}",
         format!("Result:❌ {:#?}", result[0].as_ref().unwrap_err()).red()
+    );
+    println!("override balance of caller");
+    let txs = SimulationBatch {
+        transactions: vec![tx],
+        is_stateful: true,
+        overrides: Some(StateOverride {
+            storages: Default::default(), // No storage overrides needed
+            balances: vec![(safe, amount)].into_iter().collect(), // Set sender balance to 0
+        }),
+    };
+    let result = evm.trace_transactions(txs);
+    assert!(
+        !result[0].is_err(),
+        "✅ Expected transfer to succeed due to sufficient balance"
+    );
+    println!(
+        "{}",
+        format!("Result:✅ {:#?}", result[0].as_ref().unwrap()).green()
     );
 
     Ok(())

@@ -152,6 +152,7 @@ async fn test_nested_revert_with_try_catch() -> anyhow::Result<()> {
         .trace_transactions(SimulationBatch {
             is_stateful: true,
             transactions: vec![tx0, tx1, tx2, tx3],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())
@@ -293,6 +294,7 @@ async fn test_nested_revert_with_multicall() -> anyhow::Result<()> {
         .trace_transactions(SimulationBatch {
             is_stateful: true,
             transactions: vec![tx0, tx1, tx2, tx3],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())
@@ -423,6 +425,7 @@ async fn test_nested_revert_without_multicall() -> anyhow::Result<()> {
         .trace_transactions(SimulationBatch {
             is_stateful: true,
             transactions: vec![tx0, tx1, tx2, tx3],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())
@@ -564,6 +567,7 @@ async fn test_multicall_with_error() -> anyhow::Result<()> {
         .trace_transactions(SimulationBatch {
             is_stateful: true,
             transactions: vec![tx0, tx1, tx2],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())
@@ -633,6 +637,7 @@ async fn test_create_contract() {
         .trace_transactions(SimulationBatch {
             is_stateful: false,
             transactions: vec![tx0],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())
@@ -682,6 +687,7 @@ async fn test_stateful_and_stateless_call_trace() {
         .trace_transactions(SimulationBatch {
             is_stateful: false,
             transactions: vec![tx0.clone(), tx1.clone()],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())
@@ -711,6 +717,7 @@ async fn test_stateful_and_stateless_call_trace() {
         .trace_transactions(SimulationBatch {
             is_stateful: true,
             transactions: vec![tx0.clone(), tx1.clone()],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())
@@ -776,6 +783,7 @@ async fn test_wth_ws() -> anyhow::Result<()> {
                 data: vec![].into(),
             },
         ],
+        overrides: None,
     };
 
     let results = evm

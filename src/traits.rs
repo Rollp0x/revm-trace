@@ -1,9 +1,7 @@
 use crate::errors::EvmError;
-use crate::types::{SimulationBatch, SlotAccess};
-use alloy::primitives::Address;
+use crate::types::{SimulationBatch, StorageDiff};
 use revm::context_interface::result::ExecutionResult;
 use revm::inspector::{Inspector, NoOpInspector};
-use std::collections::HashMap;
 
 /// Defines how an inspector converts its state to a specific output type
 ///
@@ -219,7 +217,7 @@ impl TraceOutput for () {
         // No output for unit type
     }
 }
-pub type StorageDiff = HashMap<Address, Vec<SlotAccess>>;
+
 pub type TraceResult<T> = Result<(ExecutionResult, StorageDiff, T), EvmError>;
 
 /// Defines standard transaction processing capabilities

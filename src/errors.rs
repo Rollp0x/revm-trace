@@ -12,7 +12,7 @@ use thiserror::Error;
 ///
 /// Encompasses all possible errors that can occur during EVM operations,
 /// providing a unified error handling interface for users.
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum EvmError {
     /// Errors occurring during EVM initialization
     #[error("Failed to initialize EVM: {0}")]
@@ -25,13 +25,17 @@ pub enum EvmError {
     /// Errors related to token operations
     #[error("Token error: {0}")]
     Token(#[from] TokenError),
+
+    /// Errors related to override operations
+    #[error("Override error: {0}")]
+    OverrideError(String),
 }
 
 /// Initialization-specific errors
 ///
 /// These errors occur during the setup phase of the EVM,
 /// typically related to network connectivity and configuration.
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum InitError {
     /// Invalid or malformed RPC URL
     #[error("Invalid RPC URL: {0}")]
@@ -66,7 +70,7 @@ pub enum InitError {
 ///
 /// These errors occur during actual transaction execution,
 /// including gas issues, reverts, and state access problems.
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum RuntimeError {
     /// General transaction execution failures
     #[error("Transaction execution failed: {0}")]
@@ -126,13 +130,13 @@ pub enum BalanceError {
 ///
 /// These errors occur during ERC20 token operations,
 /// including symbol and decimals queries, and general token calls.
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, Error)]
 pub enum TokenError {
     /// General token-related errors
     ///
     /// This variant wraps any error that does not fit into the specific token error categories.
     #[error("Token error: {0}")]
-    AnyhowError(#[from] anyhow::Error),
+    AnyhowError(String),
 
     /// Failed to decode token name
     ///

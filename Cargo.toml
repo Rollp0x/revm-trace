@@ -1,6 +1,6 @@
 [package]
 name = "revm-trace"
-version = "4.1.0"
+version = "4.2.0"
 edition = "2021"
 authors = ["REVM-Trace Contributors"]
 description = "High-performance multi-threaded EVM transaction simulator and analyzer with comprehensive tracing capabilities"

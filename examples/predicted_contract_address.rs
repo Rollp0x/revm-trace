@@ -70,6 +70,7 @@ async fn main() -> Result<()> {
     let results = evm.execute_batch(SimulationBatch {
         is_stateful: false,
         transactions: vec![deploy_tx],
+        overrides: None,
     });
 
     // Check the result

@@ -30,6 +30,7 @@ async fn test_basic_usage() -> anyhow::Result<()> {
     let batch = SimulationBatch {
         transactions: vec![tx],
         is_stateful: false,
+        overrides: None,
     };
 
     // Execute transaction batch

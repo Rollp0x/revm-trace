@@ -79,6 +79,7 @@ async fn main() -> Result<()> {
         .trace_transactions(SimulationBatch {
             is_stateful: false,
             transactions: vec![tx],
+            overrides: None,
         })
         .into_iter()
         .map(|v| v.unwrap())

@@ -3,8 +3,25 @@
 
 All notable changes to this project will be documented in this file.
 
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+
+# [4.2.0] - 2025-07-29
+
+### Added
+- **State Overrides for Simulation**: Added support for overriding contract storage slots and account balances before simulation. Users can now specify initial storage and balance state for any address via the `overrides` field in `SimulationBatch`.
+- **Flexible Simulation Scenarios**: Enables advanced use cases such as simulating Safe (Gnosis Safe) transactions with custom slot values, pre-setting ERC20 balances, or testing contract logic under arbitrary state conditions.
+
+### Changed
+- **SimulationBatch Structure**: The `SimulationBatch` struct now includes an `overrides` field (breaking change). This allows users to inject custom storage and balance state for simulation, and may require migration for existing code.
+
+### Documentation
+- Updated documentation and examples to demonstrate how to use the new `overrides` feature for advanced simulation scenarios, including Safe wallet and DeFi contract testing.
+
+### Migration
+- **Breaking Change**: If you construct `SimulationBatch` manually, you must now provide the new `overrides` field (can be `None` for default behavior).
 
 
 # [4.1.0] - 2025-07-20

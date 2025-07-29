@@ -245,6 +245,7 @@ async fn simulate_tx_internal(request: SimulateRequest) -> SimulateResponse {
     let batch = SimulationBatch {
         transactions: vec![tx],
         is_stateful: false,
+        overrides: None,
     };
 
     // Choose EVM mode based on tracing requirement

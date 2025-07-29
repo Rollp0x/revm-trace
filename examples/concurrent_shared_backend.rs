@@ -127,6 +127,7 @@ async fn worker_thread(
     let batch = SimulationBatch {
         transactions: vec![tx],
         is_stateful: false,
+        overrides: None,
     };
 
     // Execute transaction with tracing

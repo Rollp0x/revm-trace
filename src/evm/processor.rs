@@ -8,8 +8,8 @@ use std::collections::HashMap;
 
 use crate::{
     evm::TraceEvm,
-    traits::{ResetDB, StorageDiff, TraceOutput, TransactionTrace},
-    types::{SimulationBatch, SimulationTx, SlotAccess},
+    traits::{ResetDB, TraceOutput, TransactionTrace},
+    types::{SimulationBatch, SimulationTx, SlotAccess, StateOverride, StorageDiff},
 };
 
 use crate::errors::{EvmError, RuntimeError};
@@ -173,14 +173,50 @@ where
         let SimulationBatch {
             transactions,
             is_stateful,
+            overrides,
         } = batch;
+        let len = transactions.len();
 
         // 2. Reset database to clean state
         self.reset_db();
         // reset inspector slot cache
         self.inspector.reset_slot_cache();
+        let mut override_error: Option<EvmError> = None;
+        // if has overrides, set them in db
+        if let Some(overrides) = overrides {
+            let StateOverride { storages, balances } = overrides;
+            for (address, slots) in storages {
+                for (slot, value) in slots {
+                    if let Err(e) = self.db().insert_account_storage(address, slot, value) {
+                        override_error = Some(EvmError::OverrideError(format!(
+                            "Failed to set storage override for {address}:{slot} = {value}: {e}"
+                        )));
+                        break;
+                    }
+                }
+            }
+            if override_error.is_none() {
+                for (address, balance) in balances {
+                    let account = self.db().load_account(address);
+                    if let Err(e) = account {
+                        override_error = Some(EvmError::OverrideError(format!(
+                            "Failed to load account {address} for balance override: {e}"
+                        )));
+                        break;
+                    } else {
+                        let account = account.unwrap();
+                        account.info.balance = balance;
+                    }
+                }
+            }
+        }
 
-        let len = transactions.len();
+        if let Some(e) = override_error {
+            return std::iter::repeat_with(|| Err(e.clone()))
+                .take(len)
+                .collect();
+        }
+
         let mut results = Vec::with_capacity(len);
 
         // 3. Process each transaction in the batch

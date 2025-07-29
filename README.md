@@ -1,5 +1,5 @@
 
-# REVM Transaction Simulator and Analyzer v4.1
+# REVM Transaction Simulator and Analyzer v4.2
 
 A high-performance, **multi-threaded** Rust library for EVM transaction simulation and analysis, built on [REVM](https://github.com/bluealloy/revm).
 
@@ -21,13 +21,14 @@ Perfect for:
 ---
 
 
-## 🚀 What's New in v4.1.0
+## 🚀 What's New in v4.2.0
 
-- **Comprehensive Storage Slot Access Tracking**: All transaction traces now include a unified, global record of every storage slot read and write (SlotAccess), with full details (slot address, old/new value, access type, call context, etc.).
+- **State Overrides for Simulation**: You can now override contract storage slots and account balances before simulation using the new `overrides` field in `SimulationBatch`. This enables advanced scenarios such as simulating Safe wallet proposals, presetting ERC20 balances, or testing contracts under custom state conditions.
+- **Comprehensive Storage Slot Access Tracking**: All transaction traces now include a unified, global record of every storage slot read and write (`SlotAccess`), with full details (slot address, old/new value, access type, call context, etc.).
 - **Recursive Call Trace Slot Access**: Each call trace (`CallTrace`) now recursively collects all slot accesses (read/write/all), supporting deep contract call trees and complex exploit analysis.
 - **Type Filtering API**: Easily filter slot accesses by type (read/write/all) for both global and per-call-trace analysis, enabling precise state mutation auditing.
 - **Security & Audit Ready**: Instantly reconstruct the full mutation history of any transaction, analyze Safe wallet operations, privilege escalations, and hacker attacks with unprecedented granularity.
-- **Backward Compatible**: Existing simulation, asset transfer, and event tracing APIs remain unchanged—slot access tracking is fully additive.
+- **Breaking Change**: The `SimulationBatch` struct now requires an `overrides` field (use `None` for default behavior). Please update your code accordingly.
 
 ---
 
@@ -130,7 +131,7 @@ Perfect for:
 Add this to your `Cargo.toml`:
 ```toml
 [dependencies]
-revm-trace = "4.1.0"
+revm-trace = "4.2.0"
 ```
 
 ### TLS Backend Selection
@@ -139,10 +140,10 @@ revm-trace = "4.1.0"
 
 ```toml
 # Option 1: Default - uses native-tls (OpenSSL) for maximum compatibility
-revm-trace = "4.1.0"
+revm-trace = "4.2.0"
 
 # Option 2: Pure Rust TLS with rustls for system-dependency-free builds
-revm-trace = { version = "4.1.0", default-features = false, features = ["rustls-tls"] }
+revm-trace = { version = "4.2.0", default-features = false, features = ["rustls-tls"] }
 ```
 
 ---
@@ -169,6 +170,7 @@ async fn main() {
     let result = &evm.trace_transactions(SimulationBatch {
         is_stateful: false,
         transactions: vec![tx],
+        overrides: None,
     }).into_iter().map(|v| v.unwrap()).collect::<Vec<_>>()[0];
     // Print all slot writes in the call trace
     if let Some(call_trace) = result.2.call_trace.as_ref() {
@@ -201,5 +203,5 @@ Built with ❤️ using:
 
 ---
 
-**REVM-Trace v4.1.0** - *Multi-threaded EVM simulation with comprehensive analysis*
+**REVM-Trace v4.2.0** - *Multi-threaded EVM simulation with comprehensive analysis*
 

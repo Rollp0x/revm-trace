@@ -1,3 +1,14 @@
+use std::collections::HashMap;
+
+/// Override state for contract storage during simulation
+#[derive(Debug, Clone, Default)]
+pub struct StateOverride {
+    pub storages: HashMap<Address, Vec<(U256, U256)>>, // slot-value
+    pub balances: HashMap<Address, U256>,              // address-balance
+}
+
+pub type StorageDiff = HashMap<Address, Vec<SlotAccess>>;
+
 /// SlotAccessType , used to filter slot access types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SlotAccessType {
@@ -142,6 +153,8 @@ pub struct SimulationBatch {
     /// - Simulating independent scenarios
     /// - Comparing different outcomes from same starting state
     pub is_stateful: bool,
+    /// Optional state overrides for the simulation
+    pub overrides: Option<StateOverride>,
 }
 
 /// Type of token transfer (supports future extensibility)
