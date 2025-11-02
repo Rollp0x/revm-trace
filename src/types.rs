@@ -276,6 +276,12 @@ impl TokenTransfer {
     /// Parses a token transfer log and returns a vector of TokenTransfer objects
     pub fn get_token_transfers(log: &Log) -> Vec<TokenTransfer> {
         let mut results = vec![];
+
+        // Safety check: ensure topics is not empty before accessing
+        if log.topics().is_empty() {
+            return results;
+        }
+
         // erc20/erc721 transfer
         if log.topics()[0] == ERC20_TRANSFER_EVENT_SIGNATURE {
             if log.topics().len() == 3 {
