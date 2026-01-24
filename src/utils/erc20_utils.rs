@@ -6,12 +6,13 @@
 use crate::{
     errors::{EvmError, TokenError},
     evm::TraceEvm,
-    types::{TokenInfo, ERC20_TRANSFER_EVENT_SIGNATURE},
+    types::TokenInfo,
+    utils::abis::IERC20,
 };
 use alloy::{
     primitives::{Address, Bytes, FixedBytes, TxKind, U256},
     sol,
-    sol_types::SolCall,
+    sol_types::{SolCall, SolEvent},
 };
 use anyhow::Result;
 use revm::{
@@ -270,7 +271,7 @@ pub fn parse_transfer_log(
     topics: &[FixedBytes<32>],
     data: &[u8],
 ) -> Option<(Address, Address, U256)> {
-    if topics.len() < 3 || topics[0] != ERC20_TRANSFER_EVENT_SIGNATURE {
+    if topics.len() < 3 || topics[0] != IERC20::Transfer::SIGNATURE_HASH {
         return None;
     }
     let amount = U256::from_be_slice(data);

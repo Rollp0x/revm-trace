@@ -1,3 +1,4 @@
+use alloy::sol_types::SolEvent;
 use std::collections::HashMap;
 
 /// Override state for contract storage during simulation
@@ -41,10 +42,13 @@ impl CallTrace {
     }
 }
 
-use crate::MyWrapDatabaseAsync;
+use crate::{
+    utils::abis::{IERC1155, IERC20, IERC721},
+    MyWrapDatabaseAsync,
+};
 use alloy::{
     network::AnyNetwork,
-    primitives::{fixed_bytes, Address, Bytes, FixedBytes, Log, TxKind, U256},
+    primitives::{Address, Bytes, Log, TxKind, U256},
     providers::{
         fillers::{BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller},
         Identity, RootProvider,
@@ -56,13 +60,6 @@ pub use revm::{
     interpreter::{CallScheme, CreateScheme},
 };
 use serde::{Deserialize, Serialize};
-
-pub const ERC20_TRANSFER_EVENT_SIGNATURE: FixedBytes<32> =
-    fixed_bytes!("0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef");
-pub const ERC1155_TRANSFER_BATCH_EVENT_SIGNATURE: FixedBytes<32> =
-    fixed_bytes!("0x4a39dc06d4c0dbc64b70af90fd698a233a518aa5d07e595d983b8c0526c8f7fb");
-pub const ERC1155_TRANSFER_SINGLE_EVENT_SIGNATURE: FixedBytes<32> =
-    fixed_bytes!("0xc3d58168c5ae7397731d063d5bbf3d657854427343f4c083240f7aacaa2d0f62");
 
 // ========================= Provider Type Definitions =========================
 //
@@ -107,7 +104,7 @@ pub type AnyNetworkProvider = FillProvider<AllFillers, RootProvider<AnyNetwork>,
 
 pub type ArcAnyNetworkProvider = std::sync::Arc<AnyNetworkProvider>;
 
-pub const NATIVE_TOKEN_ADDRESS: Address = Address::ZERO;
+pub const NATIVE_TOKEN_ADDRESS: Address = Address::ZERO; // TODO should we use 0xeee.eeee?
 
 pub type AllDBType = MyWrapDatabaseAsync<AlloyDB<AnyNetwork, AnyNetworkProvider>>;
 
@@ -282,13 +279,15 @@ impl TokenTransfer {
             return results;
         }
 
-        // erc20/erc721 transfer
-        if log.topics()[0] == ERC20_TRANSFER_EVENT_SIGNATURE {
-            if log.topics().len() == 3 {
-                let from = Address::from_slice(&log.topics()[1].as_slice()[12..]);
-                let to = Address::from_slice(&log.topics()[2].as_slice()[12..]);
-                let data = &log.data.data;
-                let amount = U256::from_be_slice(data);
+        let topic0 = log.topics()[0];
+        match topic0 {
+            s if s == IERC20::Transfer::SIGNATURE_HASH => {
+                // decode the transfer event
+                let decoded = IERC20::Transfer::decode_log(log).unwrap();
+                let from = decoded.from;
+                let to = decoded.to;
+                let amount = decoded.value;
+
                 if !amount.is_zero() {
                     results.push(TokenTransfer {
                         token: log.address,
@@ -299,73 +298,66 @@ impl TokenTransfer {
                         id: None,
                     });
                 }
-            } else if log.topics().len() == 4 {
-                let from = Address::from_slice(&log.topics()[1].as_slice()[12..]);
-                let to = Address::from_slice(&log.topics()[2].as_slice()[12..]);
-                let id = U256::from_be_slice(log.topics()[3].as_slice());
-                let amount = U256::from(1);
+            }
+            s if s == IERC721::Transfer::SIGNATURE_HASH => {
+                // decode the transfer event
+                let decoded = IERC721::Transfer::decode_log(log).unwrap();
+                let from = decoded.from;
+                let to = decoded.to;
+                let token_id = decoded.tokenId;
+
                 results.push(TokenTransfer {
                     token: log.address,
                     from,
                     to: Some(to),
-                    value: amount,
+                    value: U256::ONE,
                     token_type: TokenType::ERC721,
-                    id: Some(id),
+                    id: Some(token_id),
                 });
             }
-        } else if log.topics()[0] == ERC1155_TRANSFER_BATCH_EVENT_SIGNATURE
-            && log.topics().len() == 4
-        {
-            let data = &log.data.data;
-            if data.len() >= 96 {
-                let from = Address::from_slice(&log.topics()[2].as_slice()[12..]);
-                let to = Address::from_slice(&log.topics()[3].as_slice()[12..]);
-                let ids_len = U256::from_be_slice(&data[64..96]).to::<usize>();
-                let mut ids = Vec::with_capacity(ids_len);
-                let mut offset = 96;
-                for _ in 0..ids_len {
-                    ids.push(U256::from_be_slice(&data[offset..offset + 32]));
-                    offset += 32;
-                }
-                // 解析 values
-                let values_len = U256::from_be_slice(&data[offset..offset + 32]).to::<usize>();
-                offset += 32;
-                let mut values = Vec::with_capacity(values_len);
-                for _ in 0..values_len {
-                    values.push(U256::from_be_slice(&data[offset..offset + 32]));
-                    offset += 32;
-                }
-                // 匹配 ids 和 values
-                for (id, value) in ids.into_iter().zip(values.into_iter()) {
-                    results.push(TokenTransfer {
-                        token: log.address,
-                        from,
-                        to: Some(to),
-                        value,
-                        token_type: TokenType::ERC1155,
-                        id: Some(id),
-                    });
-                }
-            }
-        } else if log.topics()[0] == ERC1155_TRANSFER_SINGLE_EVENT_SIGNATURE
-            && log.topics().len() == 4
-        {
-            let data = &log.data.data;
-            if data.len() >= 64 {
-                let from = Address::from_slice(&log.topics()[2].as_slice()[12..]);
-                let to = Address::from_slice(&log.topics()[3].as_slice()[12..]);
-                let id = U256::from_be_slice(&data[..32]);
-                let value = U256::from_be_slice(&data[32..64]);
+            s if s == IERC1155::TransferSingle::SIGNATURE_HASH => {
+                // decode the transfer event
+                let decoded = IERC1155::TransferSingle::decode_log(log).unwrap();
+                let _ = decoded.operator;
+                let from = decoded.from;
+                let to = decoded.to;
+                let token_id = decoded.id;
+                let value = decoded.value;
+
                 results.push(TokenTransfer {
                     token: log.address,
                     from,
                     to: Some(to),
                     value,
                     token_type: TokenType::ERC1155,
-                    id: Some(id),
+                    id: Some(token_id),
                 });
             }
+            s if s == IERC1155::TransferBatch::SIGNATURE_HASH => {
+                // decode the transfer event
+                let decoded = IERC1155::TransferBatch::decode_log(log).unwrap();
+                let _ = decoded.operator;
+                let from = decoded.from;
+                let to = decoded.to;
+                let ids = decoded.ids.clone();
+                let values = decoded.values.clone();
+
+                for i in 0..ids.len() {
+                    results.push(TokenTransfer {
+                        token: log.address,
+                        from,
+                        to: Some(to),
+                        value: values[i],
+                        token_type: TokenType::ERC1155,
+                        id: Some(ids[i]),
+                    });
+                }
+            }
+            _ => {
+                unreachable!("Not supported event: {:?}", topic0);
+            }
         }
+
         results
     }
 }

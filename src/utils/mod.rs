@@ -7,6 +7,7 @@
 //! - **Proxy contracts**: Implementation resolution and detection
 //! - **Multicall operations**: Batch contract call execution
 
+pub mod abis;
 pub mod balance_utils;
 pub mod erc20_utils;
 pub mod error_utils;
